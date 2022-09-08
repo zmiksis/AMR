@@ -18,7 +18,6 @@ class subgrid:
         self.h = []
         for i in range(self.dim):
             self.h.append((self.lim[i][1]-self.lim[i][0])/N[i])
-        self.locked = []
 
         # Compute boundary extrapolation constants
         kk = pd.bndry_order()
@@ -35,6 +34,7 @@ class subgrid:
         for i in range(self.dim):
             Nsize = Nsize*(self.N[i]+1)
         self.T = 10*np.ones(Nsize)
+        self.locked = np.zeros(Nsize)
 
         # Initialize sweep orderings
         self.order = np.array(list(itertools.product([-1,1],repeat=self.dim)))
@@ -57,7 +57,7 @@ class subgrid:
         id = 0
         for d in range(self.dim-1):
             mult = node[d]
-            for dd in range(d,self.dim-1):
+            for dd in range(d+1,self.dim):
                 mult = mult*(self.N[dd]+1)
             id = id + mult
         id = id + node[self.dim-1]
@@ -160,10 +160,11 @@ class subgrid:
                 node = np.array(idx)
                 # Find current grid node
                 x = self.findX(node)
+                # Find list id
+                id = self.findID(node)
 
-                if not pd.gamma_region(x) and not gen.arreq_in_list(node,self.locked):
-                    # Find list id
-                    id = self.findID(node)
+                if not pd.gamma_region(x) and self.locked[id] == 0:
+
                     T = self.T[id]
 
                     f = pd.f(x)

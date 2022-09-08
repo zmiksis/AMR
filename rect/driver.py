@@ -4,6 +4,8 @@ import time
 import scipy as sp
 import itertools
 import plotly.graph_objects as go
+import seaborn as sns
+from sklearn.cluster import KMeans
 
 import subgridclass as subgrid
 import problem_definition as pd
@@ -78,24 +80,64 @@ if __name__ == '__main__':
         rny = Hamiltonian.WENOrn(G[0][0],np.array(node),1)
         r = min(rpx,rnx,rpy,rny)
         # if res > 7e-2:
-        if r < 0.5 and res < 1e-2:
+        # if r < 0.5 and res < 1e-2:
+        if r < 0.5:
+            x = [round(item,4) for item in x]
             ref_list.append(x)
+
+    ref_list = np.array(ref_list)
+
+    # Cluster refinement list
+    wcss = []
+    for number_of_clusters in range(1, 21):
+        kmeans = KMeans(n_clusters = number_of_clusters, random_state = 42)
+        kmeans.fit(ref_list)
+        wcss.append(kmeans.inertia_)
+    wcss_curve_max = 0
+    clusters = 0
+    for i in range(1,len(wcss)-1):
+        wcss_curve = wcss[i-1]-2*wcss[i]+wcss[i+1]
+        if wcss_curve > wcss_curve_max and i > 1:
+            wcss_curve_max = wcss_curve
+            clusters = i+2
+    kmeans = KMeans(n_clusters = clusters, random_state = 42)
+    kmeans.fit(ref_list)
+    cluster_list = []
+    for i in range(clusters):
+        cluster_list.append([])
+    for i in range(len(ref_list)):
+        cluster_list[kmeans.labels_[i]].append(ref_list[i])
+
+    cluster_lims = []
+    for i in range(len(cluster_list)):
+        lim1 = [cluster_list[i][0][0],cluster_list[i][0][0]]
+        lim2 = [cluster_list[i][0][1],cluster_list[i][0][1]]
+        for j in range(1,len(cluster_list[i])):
+            lim1 = [min(lim1[0],cluster_list[i][j][0]),max(lim1[1],cluster_list[i][j][0])]
+            lim2 = [min(lim2[0],cluster_list[i][j][1]),max(lim2[1],cluster_list[i][j][1])]
+        lim1 = [lim1[0]-2*G[0][0].h[0],lim1[1]+2*G[0][0].h[0]]
+        lim1 = [round(item,4) for item in lim1]
+        lim2 = [lim2[0]-2*G[0][0].h[1],lim2[1]+2*G[0][0].h[1]]
+        lim2 = [round(item,4) for item in lim2]
+        cluster_lims.append([lim1,lim2])
 
     # Create new list of subgrids
     G.append([])
-    for i in range(len(ref_list)):
+
+    for i in range(len(cluster_lims)):
         # Generate base grid
-        N = np.repeat(8,G[0][0].dim)
         lim = []
         for d in range(G[0][0].dim):
-            lim1 = ref_list[i][d]-2*G[0][0].h[d]
+            lim1 = cluster_lims[i][d][0]
             if lim1 < G[0][0].lim[d][0]:
                 lim1 = G[0][0].lim[d][0]
-            lim2 = ref_list[i][d]+2*G[0][0].h[d]
+            lim2 = cluster_lims[i][d][1]
             if lim2 > G[0][0].lim[d][1]:
                 lim2 = G[0][0].lim[d][1]
             lim.append([lim1,lim2])
-        grid = subgrid.subgrid(lim,N)
+        Nx = 2*int((lim[0][1]-lim[0][0])/G[0][0].h[0])
+        Ny = 2*int((lim[1][1]-lim[1][0])/G[0][0].h[1])
+        grid = subgrid.subgrid(lim,[Nx,Ny])
 
         index = []
         for d in range(grid.dim):
@@ -111,7 +153,7 @@ if __name__ == '__main__':
                 idG = G[0][0].findID(nodeG)
                 id = grid.findID(node)
                 grid.T[id] = G[0][0].T[idG]
-                grid.locked.append(node)
+                grid.locked[id] = 1
         # Interpolate boundary nodes
         for idx in itertools.product(*index):
             node = np.array(idx)
@@ -126,10 +168,8 @@ if __name__ == '__main__':
                             [Tn,Tp] = Hamiltonian.LeftRight(grid,node,d)
                             id = grid.findID(node)
                             grid.T[id] = (Tp+Tn)/2
-                            grid.locked.append(node)
+                            grid.locked[id] = 1
         G[1].append(grid)
-
-    plt.show()
 
     # for g in range(len(G[1])):
     #     # Setup initial values
@@ -157,8 +197,8 @@ if __name__ == '__main__':
     #         if G[0][0].checkNode(x):
     #             nodeG = G[0][0].findNode(x)
     #             idG = G[0][0].findID(nodeG)
-    #             id = grid.findID(node)
-    #             G[0][0].T[idG] = min(grid.T[id], G[0][0].T[idG])
+    #             id = G[1][g].findID(node)
+    #             G[0][0].T[idG] = min(G[1][g].T[id], G[0][0].T[idG])
 
     # Stop timer
     t1 = time.time()
@@ -268,7 +308,7 @@ if __name__ == '__main__':
         y = np.array([item[1] for item in xy])
         fig2, ax2 = plt.subplots()
         ax2.set_aspect('equal')
-        tcf = ax2.tricontourf(x,y,abs(G[0][0].T-exact_sol))
+        tcf = ax2.tricontourf(x,y,abs(G[0][0].T-exact_sol), levels=np.linspace(0,0.15,11))
         fig2.colorbar(tcf)
         ax2.set_title('Contour plot of numerical error')
         plt.savefig('error.png')

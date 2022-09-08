@@ -20,7 +20,7 @@ def grid_size():
     # N = [40]
 
     # Two circle
-    N = [80,80]
+    N = [40,40]
 
     # Two sphere
     # N = [40,40,40]
