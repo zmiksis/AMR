@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 import time
@@ -93,20 +94,65 @@ if __name__ == '__main__':
         kmeans = KMeans(n_clusters = number_of_clusters, random_state = 42)
         kmeans.fit(ref_list)
         wcss.append(kmeans.inertia_)
+    # Identify elbow
     wcss_curve_max = 0
     clusters = 0
     for i in range(1,len(wcss)-1):
         wcss_curve = wcss[i-1]-2*wcss[i]+wcss[i+1]
-        if wcss_curve > wcss_curve_max and i > 1:
+        if wcss_curve > wcss_curve_max:
             wcss_curve_max = wcss_curve
-            clusters = i+2
+            clusters = i+1
     kmeans = KMeans(n_clusters = clusters, random_state = 42)
     kmeans.fit(ref_list)
+    # Find maximum distance ratio
+    dist = kmeans.transform(ref_list)**2
+    max_dist_ratio = 0
+    for label in np.unique(kmeans.labels_):
+        max_dist = max(dist[kmeans.labels_==label].sum(axis=1))
+        mean_dist = np.mean(dist[kmeans.labels_==label].sum(axis=1))
+        max_dist_ratio = max(max_dist_ratio,max_dist/mean_dist)
+    # Add clusters until maximum ratio is small enough
+    while max_dist_ratio > 1.6:
+        clusters = clusters + 1
+        kmeans = KMeans(n_clusters = clusters, random_state = 42)
+        kmeans.fit(ref_list)
+        dist = kmeans.transform(ref_list)**2
+        max_dist_ratio = 0
+        for label in np.unique(kmeans.labels_):
+            max_dist = max(dist[kmeans.labels_==label].sum(axis=1))
+            mean_dist = np.mean(dist[kmeans.labels_==label].sum(axis=1))
+            max_dist_ratio = max(max_dist_ratio,max_dist/mean_dist)
+
+    # Find distances between clusters
+    DX = G[0][0].lim[0][1] - G[0][0].lim[0][0]
+    DY = G[0][0].lim[1][1] - G[0][0].lim[1][0]
+    cluster_dist = max(DX,DY)*np.ones((clusters,clusters))
+    for cluster_check in range(clusters):
+        check_label = ref_list[kmeans.labels_==cluster_check]
+        for cluster_compare in range(cluster_check+1,clusters):
+            compare_label = ref_list[kmeans.labels_==cluster_compare]
+            for check_node in range(len(check_label)):
+                x = check_label[check_node]
+                for compare_node in range(len(compare_label)):
+                    y = compare_label[compare_node]
+                    check_dist = math.dist(x,y)
+                    cluster_dist[cluster_check][cluster_compare] = min(cluster_dist[cluster_check][cluster_compare],check_dist)
+    print(cluster_dist)
+    print(max(3*G[0][0].h[0],3*G[0][0].h[1]))
+
+    for cluster_check in range(0,clusters,-1):
+        for cluster_compare in range(cluster_check+1,clusters,-1):
+            if cluster_dist[cluster_check][cluster_compare] < max(3*G[0][0].h[0],3*G[0][0].h[1]):
+                kmeans.labels_[:] = [x if x != cluster_compare else cluster_check for x in kmeans.labels_]
+
+    # myl[:] = [x if x != 4 else 44 for x in myl]
+
+    sns.scatterplot(x=ref_list[:,0],y=ref_list[:,1],hue=kmeans.labels_)
+    plt.show()
+
     cluster_list = []
     for i in range(clusters):
-        cluster_list.append([])
-    for i in range(len(ref_list)):
-        cluster_list[kmeans.labels_[i]].append(ref_list[i])
+        cluster_list.append(ref_list[kmeans.labels_==i])
 
     cluster_lims = []
     for i in range(len(cluster_list)):
