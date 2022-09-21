@@ -35,6 +35,7 @@ class subgrid:
             Nsize = Nsize*(self.N[i]+1)
         self.T = 10*np.ones(Nsize)
         self.locked = np.zeros(Nsize)
+        self.ref_flags = np.zeros((N[0]+1,N[1]+1))
 
         # Initialize sweep orderings
         self.order = np.array(list(itertools.product([-1,1],repeat=self.dim)))
@@ -43,7 +44,7 @@ class subgrid:
         index = []
         for i in range(self.dim):
             index.append(np.array(range(self.N[i]+1)))
-        index = np.array(index)
+        index = np.array(index, dtype=object)
         for node in itertools.product(*index):
             x = self.findX(node)
             if pd.gamma_region(x):
@@ -153,7 +154,7 @@ class subgrid:
                     index.append(np.array(range(self.N[i]+1)))
                 else:
                     index.append(np.array(range(self.N[i],-1,-1)))
-            index = np.array(index)
+            index = np.array(index, dtype=object)
 
             # Compute on each node
             for idx in itertools.product(*index):

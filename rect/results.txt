@@ -1,0 +1,18 @@
+Initial grid dimensions: 40x40
+Initial grid size:       1681 nodes
+Final grid size:         1681 nodes
+RK gamma value:          1
+Iterations:              24
+L^1 error:               4.20055e-02
+L^inf error:             1.00405e-01
+CPU sec:                 9.75727
+
+Initial grid dimensions: 40x40
+Initial grid size:       1681 nodes
+Final grid size:         4059 nodes
+RK gamma value:          1
+Iterations:              131
+L^1 error:               4.13560e-02
+L^inf error:             1.02085e-01
+CPU sec:                 28.00742
+
