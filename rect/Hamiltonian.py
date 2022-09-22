@@ -76,7 +76,7 @@ def WENOrp(grid, node, dim):
 
     rp = (eps + (Tp2-2*Tp1+T)**2)/(eps + (Tp1-2*T+Tn1)**2)
 
-    return rp
+    return [rp,Tp1,Tp2]
 
 ###############################################################################
 
@@ -118,17 +118,28 @@ def WENOrn(grid, node, dim):
 
     rn = (eps + (T-2*Tn1+Tn2)**2)/(eps + (Tp1-2*T+Tn1)**2)
 
-    return rn
+    return [rn, Tn1, Tn2]
 
 ###############################################################################
 
-def LaxFriedrichs(grid, node, T):
+def LaxFriedrichs(grid, node, T, WENO):
 
     H = 0
     dxT = []
     for i in range(grid.dim):
-        [Tn,Tp] = LeftRight(grid,node,i)
-        dxT.append(dT(grid,[Tn,Tp],i))
+        if WENO:
+            [rp,Tp,Tp2] = WENOrp(grid,node,i)
+            wp = 1/(1+2*rp**2)
+            [rn,Tn,Tn2] = WENOrn(grid,node,i)
+            wn = 1/(1+2*rn**2)
+
+            dxp = (1-wp)*((Tp-Tn)/(2*grid.h[i])) + wp*((-Tp2+4*Tp-3*T)/(2*grid.h[i]))
+            dxn = (1-wn)*((Tp-Tn)/(2*grid.h[i])) + wn*((3*T-4*Tn+Tn2)/(2*grid.h[i]))
+
+            dxT.append((dxp+dxn)/2)
+        else:
+            [Tn,Tp] = LeftRight(grid,node,i)
+            dxT.append(dT(grid,[Tn,Tp],i))
         H = H + pd.alpha()[i]*(Tp-2*T+Tn)/(2*grid.h[i])
     H = pd.Hamiltonian(dxT) - H
 

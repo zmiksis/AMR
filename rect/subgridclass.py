@@ -142,7 +142,7 @@ class subgrid:
 
 ###############################################################################
 
-    def sweep(self):
+    def sweep(self, WENO = False):
 
         gamma = pd.gamma()
         # Sweep over each direction
@@ -169,7 +169,7 @@ class subgrid:
                     T = self.T[id]
 
                     f = pd.f(x)
-                    Tbar = f - Hamiltonian.LaxFriedrichs(self,node,T)
+                    Tbar = f - Hamiltonian.LaxFriedrichs(self,node,T,WENO)
 
                     denom = 0
                     for i in range(self.dim):

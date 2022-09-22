@@ -37,21 +37,23 @@ def refinement_list(grid):
         f = pd.f(x)
         # res = abs(Hamiltonian.LaxFriedrichs(G[0][0],node,T) - f)
         res = abs(T - pd.exact(x))
-        # rpx = Hamiltonian.WENOrp(G[0][0],np.array(node),0)
-        # rnx = Hamiltonian.WENOrn(G[0][0],np.array(node),0)
-        # rpy = Hamiltonian.WENOrp(G[0][0],np.array(node),1)
-        # rny = Hamiltonian.WENOrn(G[0][0],np.array(node),1)
+        # rpx = Hamiltonian.WENOrp(grid,np.array(node),0)
+        # rnx = Hamiltonian.WENOrn(grid,np.array(node),0)
+        # rpy = Hamiltonian.WENOrp(grid,np.array(node),1)
+        # rny = Hamiltonian.WENOrn(grid,np.array(node),1)
         # r = min(rpx,rnx,rpy,rny)
         if res > 7e-2:
         # if r < 0.5 and res < 1e-2:
-        # if r < 0.5:
+        # if r < 0.05:
             x = [round(item,4) for item in x]
             ref_list.append(x)
             grid.ref_flags[node[0]][node[1]] = 1
-            for i in range(-3,4):
-                for j in range(-3,4):
+            for i in range(-4,5):
+                for j in range(-4,5):
                     if 0 <= node[0]+i <= grid.N[0] and 0 <= node[1]+j <= grid.N[1]:
                         grid.ref_flags[node[0]+i][node[1]+j] = 1
+                        x = grid.findX(np.array([node[0]+i,node[1]+j]))
+                        ref_list.append(x)
 
 
     ref_list = np.array(ref_list)
@@ -95,76 +97,61 @@ def rect_Laplacian(SigmaH, SigmaV):
 
 ###############################################################################
 
-def cluster_points(ref_list, min_dist):
+def interpolate_interior(grid, G, init_level, init_grid):
 
-    # Cluster refinement list
-    wcss = []
-    for number_of_clusters in range(1, 21):
-        kmeans = KMeans(n_clusters = number_of_clusters, random_state = 42)
-        kmeans.fit(ref_list)
-        wcss.append(kmeans.inertia_)
-    # Identify elbow
-    wcss_curve_max = 0
-    clusters = 0
-    for i in range(1,len(wcss)-1):
-        wcss_curve = wcss[i-1]-2*wcss[i]+wcss[i+1]
-        if wcss_curve > wcss_curve_max:
-            wcss_curve_max = wcss_curve
-            clusters = i+1
-    kmeans = KMeans(n_clusters = clusters, random_state = 42)
-    kmeans.fit(ref_list)
-    # Find maximum distance ratio
-    dist = kmeans.transform(ref_list)**2
-    max_dist_ratio = 0
-    for label in np.unique(kmeans.labels_):
-        max_dist = max(dist[kmeans.labels_==label].sum(axis=1))
-        mean_dist = np.mean(dist[kmeans.labels_==label].sum(axis=1))
-        max_dist_ratio = max(max_dist_ratio,max_dist/mean_dist)
-    # Add clusters until maximum ratio is small enough
-    # while max_dist_ratio > 1.6:
-    while max_dist_ratio > 1.2:
-        clusters = clusters + 1
-        kmeans = KMeans(n_clusters = clusters, random_state = 42)
-        kmeans.fit(ref_list)
-        dist = kmeans.transform(ref_list)**2
-        max_dist_ratio = 0
-        for label in np.unique(kmeans.labels_):
-            max_dist = max(dist[kmeans.labels_==label].sum(axis=1))
-            mean_dist = np.mean(dist[kmeans.labels_==label].sum(axis=1))
-            max_dist_ratio = max(max_dist_ratio,max_dist/mean_dist)
+    # Linearly prolongate to refined region
+    for jj in range(0,grid.N[1]+1,2):
+        for ii in range(0,grid.N[0]+1):
+            node = np.array([ii,jj])
+            x = grid.findX(node)
+            if G[init_level][init_grid].checkNode(x):
+                nodeG = G[init_level][init_grid].findNode(x)
+                idG = G[init_level][init_grid].findID(nodeG)
+                id = grid.findID(node)
+                grid.T[id] = G[init_level][init_grid].T[idG]
+            else:
+                if not pd.gamma_region(x):
+                    id = grid.findID(node)
+                    node[1] = node[1]+1
+                    x = grid.findX(node)
+                    nodeG = G[init_level][init_grid].findNode(x)
+                    idG = G[init_level][init_grid].findID(nodeG)
+                    T = G[init_level][init_grid].T[idG]
+                    [Tn,Tp] = Hamiltonian.LeftRight(G[init_level][init_grid],nodeG,1)
+                    grid.T[id] = 3*Tn/8 + 3*T/4 - Tp/8
+    for ii in range(0,grid.N[0]+1):
+        for jj in range(1,grid.N[1]+1,2):
+            node = np.array([ii,jj])
+            id = grid.findID(node)
+            node_shift = np.array([ii,jj-1])
+            id_shift = grid.findID(node_shift)
+            Tn = grid.T[id_shift]
+            node_shift = np.array([ii,jj+1])
+            id_shift = grid.findID(node_shift)
+            T = grid.T[id_shift]
+            if jj == grid.N[1]-1:
+                node_shift = np.array([ii,jj-3])
+                id_shift = grid.findID(node_shift)
+                Tn2 = grid.T[id_shift]
+                grid.T[id] = 3*T/8 + 3*Tn/4 - Tn2/8
+            else:
+                node_shift = np.array([ii,jj+3])
+                id_shift = grid.findID(node_shift)
+                Tp = grid.T[id_shift]
+                grid.T[id] = 3*Tn/8 + 3*T/4 - Tp/8
+    # Lock boundaries
+    for bnd in [0,grid.N[0]]:
+        for bnd_node in range(grid.N[1]+1):
+            node = np.array([bnd,bnd_node])
+            id = grid.findID(node)
+            grid.locked[id] = 1
+    for bnd in [0,grid.N[1]]:
+        for bnd_node in range(grid.N[0]+1):
+            node = np.array([bnd_node,bnd])
+            id = grid.findID(node)
+            grid.locked[id] = 1
 
-    # sns.scatterplot(x=ref_list[:,0],y=ref_list[:,1],hue=kmeans.labels_)
-    # plt.show()
-
-    cluster_list = []
-    for i in range(clusters):
-        cluster_list.append(ref_list[kmeans.labels_==i])
-
-    for i in range(len(cluster_list)):
-        for j in range(i+1,len(cluster_list)):
-            if min(distance.cdist(cluster_list[i],cluster_list[j]).min(axis=1)) < min_dist:
-                print(i,"too close to",j)
-
-    return cluster_list
-
-###############################################################################
-
-def cluster_limits(grid, cluster_list):
-
-    cluster_lims = []
-    for i in range(len(cluster_list)):
-        lim1 = [cluster_list[i][0][0],cluster_list[i][0][0]]
-        lim2 = [cluster_list[i][0][1],cluster_list[i][0][1]]
-        for j in range(1,len(cluster_list[i])):
-            lim1 = [min(lim1[0],cluster_list[i][j][0]),max(lim1[1],cluster_list[i][j][0])]
-            lim2 = [min(lim2[0],cluster_list[i][j][1]),max(lim2[1],cluster_list[i][j][1])]
-        lim1 = [lim1[0]-3*grid.h[0],lim1[1]+3*grid.h[0]]
-        lim1 = [round(item,8) for item in lim1]
-        lim2 = [lim2[0]-3*grid.h[1],lim2[1]+3*grid.h[1]]
-        lim2 = [round(item,8) for item in lim2]
-        cluster_lims.append([lim1,lim2])
-
-    return cluster_lims
+    return grid
 
 ###############################################################################
 
@@ -180,28 +167,35 @@ def generate_subgrids(G, init_level, init_grid):
         while efficiency < 0.75:
             split_rect = copy.deepcopy(split_rect_original)
             split = False
+            add_rect = False
             # Compute signatures
             [SigmaH,SigmaV] = rect_signs(rect)
             # Check for holes
             if len(np.where(SigmaH == 0)[0]) > 0 and split == False:
                 splitL = np.where(SigmaH == 0)[0][0]
-                if len(np.nonzero(SigmaH[splitL:])[0]) > 0:
+                if splitL == 0:
+                    splitR = np.nonzero(SigmaH[splitL:])[0][0]
+                    split_rect[0][0] += splitR
+                elif len(np.nonzero(SigmaH[splitL:])[0]) > 0:
                     splitR = np.nonzero(SigmaH[splitL:])[0][0] + splitL
                     new_rect = [[split_rect[0][0]+splitR,split_rect[0][1]],split_rect[1].copy()]
-                if splitL > 0:
                     split_rect[0][1] = split_rect[0][0]+splitL-1
+                    add_rect = True
                 else:
-                    split_rect[0][1] = split_rect[0][0]+1
+                    split_rect[0][1] = split_rect[0][0]+splitL-1
                 split = True
             if len(np.where(SigmaV == 0)[0]) > 0 and split == False:
                 splitL = np.where(SigmaV == 0)[0][0]
-                if len(np.nonzero(SigmaV[splitL:])[0]) > 0:
+                if splitL == 0:
+                    splitR = np.nonzero(SigmaV[splitL:])[0][0]
+                    split_rect[1][0] += splitR
+                elif len(np.nonzero(SigmaV[splitL:])[0]) > 0:
                     splitR = np.nonzero(SigmaV[splitL:])[0][0] + splitL
                     new_rect = [split_rect[0].copy(),[split_rect[1][0]+splitR,split_rect[1][1]]]
-                if splitL > 0:
                     split_rect[1][1] = split_rect[1][0]+splitL-1
+                    add_rect = True
                 else:
-                    split_rect[1][1] = split_rect[1][0]+1
+                    split_rect[1][1] = split_rect[1][0]+splitL-1
                 split = True
             # If no holes, look for inflection to split
             if split == False:
@@ -238,29 +232,27 @@ def generate_subgrids(G, init_level, init_grid):
                         new_rect = [[split_rect[0][0]+split_ind,split_rect[0][1]],split_rect[1].copy()]
                         split_rect[0][1] = split_rect[0][0]+split_ind-1
                         split = True
+                        add_rect = True
                     else:
                         new_rect = [split_rect[0].copy(),[split_rect[1][0]+split_ind,split_rect[1][1]]]
                         split_rect[1][1] = split_rect[1][0]+split_ind-1
                         split = True
+                        add_rect = True
 
             # Compute efficiency of new rectangle
             [efficiency,rect] = rect_efficiency(G[init_level][0],split_rect)
             # Add new rectangle if big enough
-            small = 6
+            small = 4
             if split == True:
                 if new_rect[0][1]-new_rect[0][0]>=small and new_rect[1][1]-new_rect[1][0]>=small:
                     if split_rect[0][1]-split_rect[0][0]>=small and split_rect[1][1]-split_rect[1][0]>=small:
-                        rect_lims.append(new_rect)
                         split_rect_original[0] = split_rect[0].copy()
                         split_rect_original[1] = split_rect[1].copy()
+                        if add_rect: rect_lims.append(new_rect)
                     else:
                         efficiency = 1
                 else:
                     efficiency = 1
-
-    # Remove any possible duplicate rectangles
-    rect_lims.sort()
-    rect_lims = list(rect_lims for rect_lims,_ in itertools.groupby(rect_lims))
 
     # Reset cluster limits
     cluster_lims = []
@@ -276,66 +268,164 @@ def generate_subgrids(G, init_level, init_grid):
 
     for i in range(len(cluster_lims)):
         # Generate base grid
-        # lim = []
-        # for d in range(G[init_level][init_grid].dim):
-        #     lim1 = cluster_lims[i][d][0]
-        #     if lim1 < G[init_level][init_grid].lim[d][0]:
-        #         lim1 = G[init_level][init_grid].lim[d][0]
-        #     lim2 = cluster_lims[i][d][1]
-        #     if lim2 > G[init_level][init_grid].lim[d][1]:
-        #         lim2 = G[init_level][init_grid].lim[d][1]
-        #     lim.append([lim1,lim2])
         lim = copy.deepcopy(cluster_lims[i])
         Nx = round(2*(lim[0][1]-lim[0][0])/G[init_level][init_grid].h[0])
         Ny = round(2*(lim[1][1]-lim[1][0])/G[init_level][init_grid].h[1])
         grid = subgrid.subgrid(lim,[Nx,Ny])
 
-        # Go over x boundary
-        for bnd in [0,grid.N[0]]:
-            for bnd_node in range(grid.N[1]+1):
-                node = np.array([bnd,bnd_node])
-                x = grid.findX(node)
-                if G[init_level][init_grid].checkNode(x):
-                    nodeG = G[init_level][init_grid].findNode(x)
-                    idG = G[init_level][init_grid].findID(nodeG)
-                    id = grid.findID(node)
-                    grid.T[id] = G[init_level][init_grid].T[idG]
-                    grid.locked[id] = 1
-                else:
-                    if not pd.gamma_region(x):
-                        id = grid.findID(node)
-                        node[1] = node[1]+1
-                        x = grid.findX(node)
-                        nodeG = G[init_level][init_grid].findNode(x)
-                        idG = G[init_level][init_grid].findID(nodeG)
-                        T = G[init_level][init_grid].T[idG]
-                        [Tn,Tp] = Hamiltonian.LeftRight(G[init_level][init_grid],nodeG,1)
-                        grid.T[id] = 3*Tn/8 + 3*T/4 - Tp/8
-                        grid.locked[id] = 1
-        # Go over y boundary
-        for bnd in [0,grid.N[1]]:
-            for bnd_node in range(grid.N[0]+1):
-                node = np.array([bnd_node,bnd])
-                x = grid.findX(node)
-                if G[init_level][init_grid].checkNode(x):
-                    nodeG = G[init_level][init_grid].findNode(x)
-                    idG = G[init_level][init_grid].findID(nodeG)
-                    id = grid.findID(node)
-                    grid.T[id] = G[init_level][init_grid].T[idG]
-                    grid.locked[id] = 1
-                else:
-                    if not pd.gamma_region(x):
-                        id = grid.findID(node)
-                        node[0] = node[0]+1
-                        x = grid.findX(node)
-                        nodeG = G[init_level][init_grid].findNode(x)
-                        idG = G[init_level][init_grid].findID(nodeG)
-                        T = G[init_level][init_grid].T[idG]
-                        [Tn,Tp] = Hamiltonian.LeftRight(G[init_level][init_grid],nodeG,0)
-                        grid.T[id] = 3*Tn/8 + 3*T/4 - Tp/8
-                        grid.locked[id] = 1
+        # # Go over x boundary
+        # for bnd in [0,grid.N[0]]:
+        #     for bnd_node in range(grid.N[1]+1):
+        #         node = np.array([bnd,bnd_node])
+        #         x = grid.findX(node)
+        #         if G[init_level][init_grid].checkNode(x):
+        #             nodeG = G[init_level][init_grid].findNode(x)
+        #             idG = G[init_level][init_grid].findID(nodeG)
+        #             id = grid.findID(node)
+        #             grid.T[id] = G[init_level][init_grid].T[idG]
+        #             grid.locked[id] = 1
+        #         else:
+        #             if not pd.gamma_region(x):
+        #                 id = grid.findID(node)
+        #                 node[1] = node[1]+1
+        #                 x = grid.findX(node)
+        #                 nodeG = G[init_level][init_grid].findNode(x)
+        #                 idG = G[init_level][init_grid].findID(nodeG)
+        #                 T = G[init_level][init_grid].T[idG]
+        #                 [Tn,Tp] = Hamiltonian.LeftRight(G[init_level][init_grid],nodeG,1)
+        #                 grid.T[id] = 3*Tn/8 + 3*T/4 - Tp/8
+        #                 grid.locked[id] = 1
+        # # Go over y boundary
+        # for bnd in [0,grid.N[1]]:
+        #     for bnd_node in range(grid.N[0]+1):
+        #         node = np.array([bnd_node,bnd])
+        #         x = grid.findX(node)
+        #         if G[init_level][init_grid].checkNode(x):
+        #             nodeG = G[init_level][init_grid].findNode(x)
+        #             idG = G[init_level][init_grid].findID(nodeG)
+        #             id = grid.findID(node)
+        #             grid.T[id] = G[init_level][init_grid].T[idG]
+        #             grid.locked[id] = 1
+        #         else:
+        #             if not pd.gamma_region(x):
+        #                 id = grid.findID(node)
+        #                 node[0] = node[0]+1
+        #                 x = grid.findX(node)
+        #                 nodeG = G[init_level][init_grid].findNode(x)
+        #                 idG = G[init_level][init_grid].findID(nodeG)
+        #                 T = G[init_level][init_grid].T[idG]
+        #                 [Tn,Tp] = Hamiltonian.LeftRight(G[init_level][init_grid],nodeG,0)
+        #                 grid.T[id] = 3*Tn/8 + 3*T/4 - Tp/8
+        #                 grid.locked[id] = 1
+
+        grid = interpolate_interior(grid,G,init_level,init_grid)
 
         G[init_level+1].append(grid)
+
+    return G
+
+###############################################################################
+
+def generate_lists(G):
+
+    node_list = []
+    fine_grid_list = []
+    refinedT = []
+    X_list = []
+    for i in range(G[0][0].N[0]+1):
+        for j in range(G[0][0].N[1]+1):
+            node = np.array([i,j])
+            id = G[0][0].findID(node)
+            node_list.append(node)
+            fine_grid_list.append([0,0])
+            refinedT.append(G[0][0].T[id])
+            X_list.append(G[0][0].findX(node))
+
+    ref_lvl = 0
+
+    for ref_grid in range(len(G[ref_lvl+1])):
+        for i in range(G[ref_lvl+1][ref_grid].N[0]+1):
+            for j in range(G[ref_lvl+1][ref_grid].N[1]+1):
+                node = np.array([i,j])
+                x = G[ref_lvl+1][ref_grid].findX(node)
+                id = np.all(x == X_list,axis=1)
+                id = np.where(id == True)[0]
+                if id.size > 0:
+                    id = id[0]
+                    fine_grid_list[id] = [ref_lvl+1,ref_grid]
+                    node_list[id] = np.array(node)
+                else:
+                    id = G[ref_lvl+1][ref_grid].findID(node)
+                    node_list.append(node)
+                    fine_grid_list.append([ref_lvl+1,ref_grid])
+                    refinedT.append(G[ref_lvl+1][ref_grid].T[id])
+                    X_list.append(G[ref_lvl+1][ref_grid].findX(node))
+
+    return node_list, fine_grid_list, refinedT, X_list
+
+###############################################################################
+
+def sort_values_l2(X_list, ref_lim):
+
+    ref_pt.append([ref_lim[0,0],ref_lim[1,0]])
+    ref_pt.append([ref_lim[0,1],ref_lim[1,0]])
+    ref_pt.append([ref_lim[0,0],ref_lim[1,1]])
+    ref_pt.append([ref_lim[0,1],ref_lim[1,1]])
+
+    list = []
+    for pt in range(len(ref_pt)):
+        dist = np.array([])
+        for i in range(len(X_list)):
+            dist = np.append(dist,math.dist(X_list[i],ref_pt[pt]))
+        S = np.argsort(dist,kind='heapsort')
+        list.append(S)
+
+    for i in range(len(list)):
+        list[i] = list[i].tolist()
+
+    return list
+
+###############################################################################
+
+def send_values(G, level, grid):
+
+    # Send values back to G[0]
+    index = []
+    for i in range(G[level][grid].dim):
+        index.append(np.array(range(G[level][grid].N[i]+1)))
+    index = np.array(index, dtype=object)
+    # Copy computed values from coarser grid
+    for idx in itertools.product(*index):
+        node = np.array(idx)
+        # Find current grid node
+        x = G[level][grid].findX(node)
+        if G[0][0].checkNode(x):
+            nodeG = G[0][0].findNode(x)
+            idG = G[0][0].findID(nodeG)
+            id = G[level][grid].findID(node)
+            G[0][0].T[idG] = min(G[level][grid].T[id], G[0][0].T[idG])
+
+    return G
+
+###############################################################################
+
+def get_values(G, level, grid):
+
+    # Get values from G[0]
+    index = []
+    for i in range(G[level][grid].dim):
+        index.append(np.array(range(G[level][grid].N[i]+1)))
+    index = np.array(index, dtype=object)
+    # Copy computed values from coarser grid
+    for idx in itertools.product(*index):
+        node = np.array(idx)
+        # Find current grid node
+        x = G[level][grid].findX(node)
+        if G[0][0].checkNode(x):
+            nodeG = G[0][0].findNode(x)
+            idG = G[0][0].findID(nodeG)
+            id = G[level][grid].findID(node)
+            G[level][grid].T[id] = G[0][0].T[idG]
 
     return G
 
@@ -357,19 +447,6 @@ def refine_sweep(G, level, iterate):
             print("G-S convergence error of grid G({},{}): {}".format(level,g,max(abs(G[level][g].T-T_old))))
 
         # Send values back to G[0]
-        index = []
-        for i in range(G[level][g].dim):
-            index.append(np.array(range(G[level][g].N[i]+1)))
-        index = np.array(index, dtype=object)
-        # Copy computed values from coarser grid
-        for idx in itertools.product(*index):
-            node = np.array(idx)
-            # Find current grid node
-            x = G[level][g].findX(node)
-            if G[0][0].checkNode(x):
-                nodeG = G[0][0].findNode(x)
-                idG = G[0][0].findID(nodeG)
-                id = G[level][g].findID(node)
-                G[0][0].T[idG] = min(G[level][g].T[id], G[0][0].T[idG])
+        G = send_values(G,level,g)
 
     return [G, iterate]

@@ -56,7 +56,7 @@ if __name__ == '__main__':
         iterate = iterate + 1
         print('G-S convergence error:',max(abs(G[0][0].T-T_old)))
 
-    # # Only refine once (L^8 error not changing)
+    # Only refine once (L^8 error not changing)
     ref_lvl = 0
     # Create new list of subgrids
     G.append([])
@@ -65,15 +65,20 @@ if __name__ == '__main__':
         ref_list = mr.refinement_list(G[ref_lvl][ref_grid])
         # Create new subgrids
         G = mr.generate_subgrids(G,ref_lvl,ref_grid)
-    # Refinement sweep on each new subgrid
-    [G,iterate] = mr.refine_sweep(G,ref_lvl+1,iterate)
 
-    # Correction step
     T_old = G[0][0].T.copy()
+    for g in range(len(G[ref_lvl+1])):
+        G[ref_lvl+1][g].sweep()
+        G = mr.send_values(G,ref_lvl+1,g)
     G[0][0].sweep()
     iterate = iterate + 1
     while max(abs(G[0][0].T-T_old)) > 1e-13:
         T_old = G[0][0].T.copy()
+        for g in range(len(G[ref_lvl+1])):
+            G = mr.get_values(G,ref_lvl+1,g)
+            G[ref_lvl+1][g] = mr.interpolate_interior(G[ref_lvl+1][g],G,0,0)
+            G[ref_lvl+1][g].sweep()
+            G = mr.send_values(G,ref_lvl+1,g)
         G[0][0].sweep()
         iterate = iterate + 1
         print('Correction G-S convergence error:',max(abs(G[0][0].T-T_old)))
@@ -211,6 +216,8 @@ if __name__ == '__main__':
                     ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
                 for i in range(len(x)):
                     ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
+        # for p in ref_list:
+        #     ax4.plot(p[0],p[1],'bo')
         plt.savefig('mesh.png')
 
 
