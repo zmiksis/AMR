@@ -16,23 +16,21 @@ import Hamiltonian
 
 ###############################################################################
 
-def refinement_list(grid):
+def refinement_list(G, lvl, grid_ind, ref_list):
 
     # Generate lists of ordered indexes to check
     index = []
-    for i in range(grid.dim):
-        index.append(np.array(range(grid.N[i]+1)))
+    for i in range(G[lvl][grid_ind].dim):
+        index.append(np.array(range(G[lvl][grid_ind].N[i]+1)))
     index = np.array(index, dtype=object)
-    # Initiate list of nodes to refine
-    ref_list = []
     # Check each node
     for idx in itertools.product(*index):
         node = np.array(idx)
         # Find current grid node
-        x = grid.findX(node)
+        x = G[lvl][grid_ind].findX(node)
         # Get T at current node
-        id = grid.findID(node)
-        T = grid.T[id]
+        id = G[lvl][grid_ind].findID(node)
+        T = G[lvl][grid_ind].T[id]
         # Compute residual
         f = pd.f(x)
         # res = abs(Hamiltonian.LaxFriedrichs(G[0][0],node,T) - f)
@@ -47,18 +45,18 @@ def refinement_list(grid):
         # if r < 0.05:
             x = [round(item,4) for item in x]
             ref_list.append(x)
-            grid.ref_flags[node[0]][node[1]] = 1
+            G[lvl][grid_ind].ref_flags[node[0]][node[1]] = 1
             for i in range(-4,5):
                 for j in range(-4,5):
-                    if 0 <= node[0]+i <= grid.N[0] and 0 <= node[1]+j <= grid.N[1]:
-                        grid.ref_flags[node[0]+i][node[1]+j] = 1
-                        x = grid.findX(np.array([node[0]+i,node[1]+j]))
+                    if 0 <= node[0]+i <= G[lvl][grid_ind].N[0] and 0 <= node[1]+j <= G[lvl][grid_ind].N[1]:
+                        G[lvl][grid_ind].ref_flags[node[0]+i][node[1]+j] = 1
+                        x = G[lvl][grid_ind].findX(np.array([node[0]+i,node[1]+j]))
                         ref_list.append(x)
 
 
-    ref_list = np.array(ref_list)
+    # ref_list = np.array(ref_list)
 
-    return ref_list
+    return [G, ref_list]
 
 ###############################################################################
 
@@ -158,12 +156,13 @@ def interpolate_interior(grid, G, init_level, init_grid):
 def generate_subgrids(G, init_level, init_grid):
 
     # Berger and Rigoutsos (1991) clustering
+    small = 4
     rect_lims = []
-    lim_ind = [[0,G[init_level][0].N[0]],[0,G[init_level][0].N[1]]]
+    lim_ind = [[0,G[init_level][init_grid].N[0]],[0,G[init_level][init_grid].N[1]]]
     rect_lims.append(lim_ind)
     for split_rect_original in rect_lims:
         # Cluster flagged points
-        [efficiency,rect] = rect_efficiency(G[init_level][0],split_rect_original)
+        [efficiency,rect] = rect_efficiency(G[init_level][init_grid],split_rect_original)
         while efficiency < 0.75:
             split_rect = copy.deepcopy(split_rect_original)
             split = False
@@ -171,21 +170,37 @@ def generate_subgrids(G, init_level, init_grid):
             # Compute signatures
             [SigmaH,SigmaV] = rect_signs(rect)
             # Check for holes
-            if len(np.where(SigmaH == 0)[0]) > 0 and split == False:
-                splitL = np.where(SigmaH == 0)[0][0]
-                if splitL == 0:
-                    splitR = np.nonzero(SigmaH[splitL:])[0][0]
-                    split_rect[0][0] += splitR
-                elif len(np.nonzero(SigmaH[splitL:])[0]) > 0:
-                    splitR = np.nonzero(SigmaH[splitL:])[0][0] + splitL
-                    new_rect = [[split_rect[0][0]+splitR,split_rect[0][1]],split_rect[1].copy()]
-                    split_rect[0][1] = split_rect[0][0]+splitL-1
-                    add_rect = True
+            H_holes = np.where(SigmaH == 0)[0]
+            new_rect = copy.deepcopy(split_rect)
+            while len(H_holes) > 0 and split == False:
+                if np.sum(SigmaH == 0) == len(SigmaH):
+                    split = True
                 else:
-                    split_rect[0][1] = split_rect[0][0]+splitL-1
-                split = True
-            if len(np.where(SigmaV == 0)[0]) > 0 and split == False:
-                splitL = np.where(SigmaV == 0)[0][0]
+                    splitL = H_holes[0]
+                    if splitL == 0:
+                        splitR = np.nonzero(SigmaH[splitL:])[0][0]
+                        split_rect[0][0] += splitR
+                    elif len(np.nonzero(SigmaH[splitL:])[0]) > 0:
+                        splitR = np.nonzero(SigmaH[splitL:])[0][0] + splitL
+                        new_rect = [[split_rect[0][0]+splitR,split_rect[0][1]],split_rect[1].copy()]
+                        split_rect[0][1] = split_rect[0][0]+splitL-1
+                        add_rect = True
+                    else:
+                        split_rect[0][1] = split_rect[0][0]+splitL-1
+
+                    if new_rect[0][1]-new_rect[0][0]>=small and new_rect[1][1]-new_rect[1][0]>=small:
+                        if split_rect[0][1]-split_rect[0][0]>=small and split_rect[1][1]-split_rect[1][0]>=small:
+                            split = True
+                        else:
+                            split_rect = copy.deepcopy(split_rect_original)
+                    else:
+                        split_rect = copy.deepcopy(split_rect_original)
+
+                    H_holes = np.delete(H_holes,0)
+
+            V_holes = np.where(SigmaV == 0)[0]
+            while len(V_holes) > 0 and split == False:
+                splitL = V_holes[0]
                 if splitL == 0:
                     splitR = np.nonzero(SigmaV[splitL:])[0][0]
                     split_rect[1][0] += splitR
@@ -196,8 +211,18 @@ def generate_subgrids(G, init_level, init_grid):
                     add_rect = True
                 else:
                     split_rect[1][1] = split_rect[1][0]+splitL-1
-                split = True
-            # If no holes, look for inflection to split
+
+                if new_rect[0][1]-new_rect[0][0]>=small and new_rect[1][1]-new_rect[1][0]>=small:
+                    if split_rect[0][1]-split_rect[0][0]>=small and split_rect[1][1]-split_rect[1][0]>=small:
+                        split = True
+                    else:
+                        split_rect = copy.deepcopy(split_rect_original)
+                else:
+                    split_rect = copy.deepcopy(split_rect_original)
+
+                V_holes = np.delete(V_holes,0)
+
+            # If no holes to split, look for inflection to split
             if split == False:
                 # Compute Laplacian of signatures
                 [LaplacianH,LaplacianV] = rect_Laplacian(SigmaH,SigmaV)
@@ -242,7 +267,6 @@ def generate_subgrids(G, init_level, init_grid):
             # Compute efficiency of new rectangle
             [efficiency,rect] = rect_efficiency(G[init_level][0],split_rect)
             # Add new rectangle if big enough
-            small = 4
             if split == True:
                 if new_rect[0][1]-new_rect[0][0]>=small and new_rect[1][1]-new_rect[1][0]>=small:
                     if split_rect[0][1]-split_rect[0][0]>=small and split_rect[1][1]-split_rect[1][0]>=small:
@@ -389,7 +413,7 @@ def sort_values_l2(X_list, ref_lim):
 
 def send_values(G, level, grid):
 
-    # Send values back to G[0]
+    # Send values back to refinement level above
     index = []
     for i in range(G[level][grid].dim):
         index.append(np.array(range(G[level][grid].N[i]+1)))
@@ -399,11 +423,12 @@ def send_values(G, level, grid):
         node = np.array(idx)
         # Find current grid node
         x = G[level][grid].findX(node)
-        if G[0][0].checkNode(x):
-            nodeG = G[0][0].findNode(x)
-            idG = G[0][0].findID(nodeG)
-            id = G[level][grid].findID(node)
-            G[0][0].T[idG] = min(G[level][grid].T[id], G[0][0].T[idG])
+        for up_grid in range(len(G[level-1])):
+            if G[level-1][up_grid].checkNode(x):
+                nodeG = G[level-1][up_grid].findNode(x)
+                idG = G[level-1][up_grid].findID(nodeG)
+                id = G[level][grid].findID(node)
+                G[level-1][up_grid].T[idG] = min(G[level][grid].T[id], G[level-1][up_grid].T[idG])
 
     return G
 
@@ -411,7 +436,7 @@ def send_values(G, level, grid):
 
 def get_values(G, level, grid):
 
-    # Get values from G[0]
+    # Get values from refinement level above
     index = []
     for i in range(G[level][grid].dim):
         index.append(np.array(range(G[level][grid].N[i]+1)))
@@ -421,11 +446,12 @@ def get_values(G, level, grid):
         node = np.array(idx)
         # Find current grid node
         x = G[level][grid].findX(node)
-        if G[0][0].checkNode(x):
-            nodeG = G[0][0].findNode(x)
-            idG = G[0][0].findID(nodeG)
-            id = G[level][grid].findID(node)
-            G[level][grid].T[id] = G[0][0].T[idG]
+        for up_grid in range(len(G[level-1])):
+            if G[level-1][up_grid].checkNode(x):
+                nodeG = G[level-1][up_grid].findNode(x)
+                idG = G[level-1][up_grid].findID(nodeG)
+                id = G[level][grid].findID(node)
+                G[level][grid].T[id] = G[level-1][up_grid].T[idG]
 
     return G
 
