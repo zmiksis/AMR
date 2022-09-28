@@ -18,9 +18,9 @@ if __name__ == '__main__':
     # Turn AMR on/off
     AMR = False
     # Use high order sweeping
-    highOrder = True
+    highOrder = False
     # Set first order convergence tolerance
-    conv_tol = 1e-2
+    conv_tol = 1e-4
     # Set high order convergence tolerance
     HO_conv_tol = 5e-2
 
