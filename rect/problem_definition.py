@@ -86,16 +86,16 @@ def Hamiltonian(xpoint, xval):
     B = (0.45*sigma**2)/(sigma**2 + 0.09)
     Itmp = 1/np.sqrt(1+p**2+q**2)
     I = wd*(A*Itmp + B - B*Itmp**2) + ws*Itmp**n
-    Tk = 0
-    Tkn = 1
-    while abs(Tk - Tkn) > 1e-8:
-        Tkn = Tk
-        FT = ws*Tk**n - B*wd*Tk**2 + A*wd*Tk + B*wd - I
-        FpT = n*ws*Tk**(n-1) + wd*(A - 2*B*Tk)
-        Tk = Tkn - FT/FpT
-    T = Tk
-    # p0 = p-1e-6
-    # q0 = q-1e-6
+    # Tk = 0
+    # Tkn = 1
+    # while abs(Tk - Tkn) > 1e-8:
+    #     Tkn = Tk
+    #     FT = ws*Tk**n - B*wd*Tk**2 + A*wd*Tk + B*wd - I
+    #     FpT = n*ws*Tk**(n-1) + wd*(A - 2*B*Tk)
+    #     Tk = Tkn - FT/FpT
+    # T = Tk
+    p0 = p-1e-6
+    q0 = q-1e-6
     # T = (q0-q)*q0/((1+p0**2+q0**2)**(3/2)) + 1/np.sqrt(1+p0**2+q0**2) \
     #     + ((q-q0)**2)*(2*q0**2-p0**2-1)/(2*(1+p0**2+q0**2)**(5/2)) \
     #     + (p-p0)*(3*p0*(q-q0)**2*(1+p0**2-4*q0**2)/(2*(1+p0**2+q0**2)**(7/2)) \
@@ -104,11 +104,11 @@ def Hamiltonian(xpoint, xval):
     #     + ((p-p0)**2)*(3*(q-q0)*q0*(1-4*p0**2+q0**2)/(2*(1+p0**2+q0**2)**(7/2)) \
     #                     + (2*p0**2-q0**2-1)/(2*(1+p0**2+q0**2)**(5/2)) \
     #                     - 3*(q-q0)**2*(4*p0**4-1+3*q0**2+4*q0**4+p0**2*(3-27*q0**2))/(4*(1+p0**2+q0**2)**(9/2)))
-    # T = (1/64)*(8*(8-4*(q**2)+3*(q**4)) - 4*(p**2)*(8-12*(q**2)+15*(q**4)) + 3*(p**4)*(8-20*(q**2)+35*(q**4)))
-    # T = (1/4)*(4-2*(q**2)+(p**2)*(3*(q**2)-2))
-    # if not math.isnan(T): print(T)
-    # else: print("Uh-oh!")
-    H = np.sqrt(p**2+q**2) - np.sqrt((1/(T**2))-1)
+    T = (q0-q)*q0/((1+p0**2+q0**2)**(3/2)) + 1/np.sqrt(1+p0**2+q0**2) \
+        + (p-p0)*(3*p0*(q-q0)*q0/((1+p0**2+q0**2)**(5/2)) \
+                    - p0/((1+p0**2+q0**2)**(3/2)))
+    # H = np.sqrt(p**2+q**2) - np.sqrt((1/(T**2))-1)
+    H = ws*T**n - B*wd*T**2 + A*wd*T + B*wd - I
 
 
     return H
@@ -158,11 +158,12 @@ def gamma_region(xval):
         return True
     elif abs(0.5-abs(x)) < 1e-2:
         return True
-    elif abs(y) < 0.2 or abs(1-y) < 1e-2:
-        return True
     else:
         return False
 
+
+    # elif abs(y) < 0.2 or abs(1-y) < 1e-2:
+    #     return True
     # elif math.dist([x,y],[0,0]) < 1e-2 or math.dist([x,y],[0,1]) < 1e-2:
     #     return True
     # elif x < xbnd or x > -xbnd:
@@ -181,7 +182,7 @@ def f(xval, Dx):
     # rhs = 1
 
     # Shape-from-shading
-    rhs = 1
+    rhs = 0
 
     return rhs
 
