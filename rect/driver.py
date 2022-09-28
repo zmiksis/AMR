@@ -15,6 +15,15 @@ import mesh_refinement as mr
 
 if __name__ == '__main__':
 
+    # Turn AMR on/off
+    AMR = False
+    # Use high order sweeping
+    highOrder = True
+    # Set first order convergence tolerance
+    conv_tol = 1e-2
+    # Set high order convergence tolerance
+    HO_conv_tol = 5e-2
+
     # Initialize domain and list of grids
     lim = pd.domain()
     N = pd.grid_size()
@@ -50,99 +59,127 @@ if __name__ == '__main__':
     # Implement sweeping here
     G[0][0].sweep()
     iterate = iterate + 1
-    while max(abs(G[0][0].T-T_old)) > 1e-13:
+    while max(abs(G[0][0].T-T_old)) > conv_tol:
         T_old = G[0][0].T.copy()
         G[0][0].sweep()
         iterate = iterate + 1
         print('G-S convergence error:',max(abs(G[0][0].T-T_old)))
 
-    # Only refine once (L^8 error not changing)
-    # ref_lvl = 0
-    for ref_lvl in range(2):
-        # Create new list of subgrids
-        grid = subgrid.subgrid(G[ref_lvl][0].lim,np.multiply(2,G[ref_lvl][0].N))
-        G.append([grid])
-        ref_list = []
-        # Identify points that need refinement
-        if ref_lvl == 0:
-            [G,ref_list] = mr.refinement_list(G,ref_lvl,0,ref_list)
-            G = mr.generate_subgrids(G,ref_lvl,0)
-        else:
-            for ref_grid in range(1,len(G[ref_lvl])):
-                [G,ref_list] = mr.refinement_list(G,ref_lvl,ref_grid,ref_list)
-                G = mr.generate_subgrids(G,ref_lvl,ref_grid)
-        for p in ref_list:
-            node = G[ref_lvl][0].findNode(p)
-            G[ref_lvl][0].ref_flags[node[0]][node[1]] = 1
-        # Create new subgrids
-        # G = mr.generate_subgrids(G,ref_lvl,0)
-
-        fig4, ax4 = plt.subplots()
-        ax4.set_aspect('equal')
-        ax4.set_title('Mesh')
-        xy = []
-        index = []
-        for i in range(G[0][0].dim):
-            index.append(np.array(range(G[0][0].N[i]+1)))
-        index = np.array(index, dtype=object)
-        for node in itertools.product(*index):
-            nodex = []
-            for i in range(G[0][0].dim):
-                nodex.append(G[0][0].lim[i][0]+node[i]*G[0][0].h[i])
-            nodex = np.array(nodex)
-            xy.append(nodex)
-        x = np.array([item[0] for item in xy])
-        y = np.array([item[1] for item in xy])
-        for i in range(len(y)):
-            ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
-        for i in range(len(x)):
-            ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
-        # Plot new grids
-        for l in range(1,len(G)):
-            for g in range(1,len(G[l])):
-                xy = []
-                index = []
-                for i in range(G[l][g].dim):
-                    index.append(np.array(range(G[l][g].N[i]+1)))
-                index = np.array(index, dtype=object)
-                for node in itertools.product(*index):
-                    nodex = []
-                    for i in range(G[l][g].dim):
-                        nodex.append(G[l][g].lim[i][0]+node[i]*G[l][g].h[i])
-                    nodex = np.array(nodex)
-                    xy.append(nodex)
-                x = np.array([item[0] for item in xy])
-                y = np.array([item[1] for item in xy])
-                for i in range(len(y)):
-                    ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
-                for i in range(len(x)):
-                    ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
-        # for p in ref_list:
-        #     ax4.plot(p[0],p[1],'bo')
-        # plt.savefig('mesh.png')
-
-        # Correction sweeping
+    if highOrder:
         T_old = G[0][0].T.copy()
-        for lvl in range(ref_lvl+1,0,-1):
-            for g in range(1,len(G[ref_lvl+1])):
-                G[lvl][g].sweep()
-                G = mr.send_values(G,lvl,g)
-        G[0][0].sweep()
+        G[0][0].sweep(True)
         iterate = iterate + 1
-        while max(abs(G[0][0].T-T_old)) > 1e-13:
+        while max(abs(G[0][0].T-T_old)) > HO_conv_tol:
+            T_old = G[0][0].T.copy()
+            G[0][0].sweep(True)
+            iterate = iterate + 1
+            print('WENO G-S convergence error:',max(abs(G[0][0].T-T_old)))
+
+    if AMR:
+        # Only refine once (L^8 error not changing)
+        # ref_lvl = 0
+        for ref_lvl in range(2):
+            # Create new list of subgrids
+            grid = subgrid.subgrid(G[ref_lvl][0].lim,np.multiply(2,G[ref_lvl][0].N))
+            G.append([grid])
+            ref_list = []
+            # Identify points that need refinement
+            if ref_lvl == 0:
+                [G,ref_list] = mr.refinement_list(G,ref_lvl,0,ref_list)
+                G = mr.generate_subgrids(G,ref_lvl,0)
+            else:
+                for ref_grid in range(1,len(G[ref_lvl])):
+                    [G,ref_list] = mr.refinement_list(G,ref_lvl,ref_grid,ref_list)
+                    G = mr.generate_subgrids(G,ref_lvl,ref_grid)
+            for p in ref_list:
+                node = G[ref_lvl][0].findNode(p)
+                G[ref_lvl][0].ref_flags[node[0]][node[1]] = 1
+            # Create new subgrids
+            # G = mr.generate_subgrids(G,ref_lvl,0)
+
+            fig4, ax4 = plt.subplots()
+            ax4.set_aspect('equal')
+            ax4.set_title('Mesh')
+            xy = []
+            index = []
+            for i in range(G[0][0].dim):
+                index.append(np.array(range(G[0][0].N[i]+1)))
+            index = np.array(index, dtype=object)
+            for node in itertools.product(*index):
+                nodex = []
+                for i in range(G[0][0].dim):
+                    nodex.append(G[0][0].lim[i][0]+node[i]*G[0][0].h[i])
+                nodex = np.array(nodex)
+                xy.append(nodex)
+            x = np.array([item[0] for item in xy])
+            y = np.array([item[1] for item in xy])
+            for i in range(len(y)):
+                ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
+            for i in range(len(x)):
+                ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
+            # Plot new grids
+            for l in range(1,len(G)):
+                for g in range(1,len(G[l])):
+                    xy = []
+                    index = []
+                    for i in range(G[l][g].dim):
+                        index.append(np.array(range(G[l][g].N[i]+1)))
+                    index = np.array(index, dtype=object)
+                    for node in itertools.product(*index):
+                        nodex = []
+                        for i in range(G[l][g].dim):
+                            nodex.append(G[l][g].lim[i][0]+node[i]*G[l][g].h[i])
+                        nodex = np.array(nodex)
+                        xy.append(nodex)
+                    x = np.array([item[0] for item in xy])
+                    y = np.array([item[1] for item in xy])
+                    for i in range(len(y)):
+                        ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
+                    for i in range(len(x)):
+                        ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
+            # for p in ref_list:
+            #     ax4.plot(p[0],p[1],'bo')
+            # plt.savefig('mesh.png')
+
+            # Correction sweeping
             T_old = G[0][0].T.copy()
             for lvl in range(ref_lvl+1,0,-1):
-                for g in range(1,len(G[lvl])):
-                    G = mr.get_values(G,lvl,g)
-                    G[lvl][g] = mr.interpolate_interior(G[lvl][g],G,lvl-1,0)
+                for g in range(1,len(G[ref_lvl+1])):
                     G[lvl][g].sweep()
                     G = mr.send_values(G,lvl,g)
             G[0][0].sweep()
             iterate = iterate + 1
-            print('Correction G-S convergence error:',max(abs(G[0][0].T-T_old)))
+            while max(abs(G[0][0].T-T_old)) > 1e-13:
+                T_old = G[0][0].T.copy()
+                for lvl in range(ref_lvl+1,0,-1):
+                    for g in range(1,len(G[lvl])):
+                        G = mr.get_values(G,lvl,g)
+                        G[lvl][g] = mr.interpolate_interior(G[lvl][g],G,lvl-1,0)
+                        G[lvl][g].sweep()
+                        G = mr.send_values(G,lvl,g)
+                G[0][0].sweep()
+                iterate = iterate + 1
+                print('Correction G-S convergence error:',max(abs(G[0][0].T-T_old)))
 
     # Stop timer
     t1 = time.time()
+
+    # total_error = 0
+    # total_points = 0
+    # max_error = 0
+    # for i in range(G[0][0].N[0]+1):
+    #     for j in range(G[0][0].N[1]+1):
+    #         node = np.array([i,j])
+    #         id = G[0][0].findID(node)
+    #         x = G[0][0].findX(node)
+    #         exactT = pd.exact(x)
+    #         d1 = math.dist(x,[math.sqrt(1.5),0])
+    #         d2 = math.dist(x,[-1,0])
+    #         if d1 > 0.15 and d2 > 0.15 and abs(d1-d2) > 0.3:
+    #             total_error += abs(G[0][0].T[id] - exactT)
+    #             total_points += 1
+    #             max_error = max(max_error,abs(G[0][0].T[id] - exactT))
+    # avg_error = total_error/total_points
 
     # Write results to file
     if G[0][0].dim == 1:
@@ -166,6 +203,8 @@ if __name__ == '__main__':
     itstring = "\nIterations:              {}".format(iterate)
     L1string = "\nL^1 error:               {:.5e}".format(np.linalg.norm(G[0][0].T-exact_sol,ord=1)/len(G[0][0].T))
     Linfstring = "\nL^inf error:             {:.5e}".format(max(abs(G[0][0].T-exact_sol)))
+    # L1string = "\nL^1 error:               {:.5e}".format(avg_error)
+    # Linfstring = "\nL^inf error:             {:.5e}".format(max_error)
     CPUstring = "\nCPU sec:                 {:.5f}\n".format(t1-t0)
     blankLine = "\n"
 
@@ -228,7 +267,8 @@ if __name__ == '__main__':
         y = np.array([item[1] for item in xy])
         fig2, ax2 = plt.subplots()
         ax2.set_aspect('equal')
-        tcf = ax2.tricontourf(x,y,abs(G[0][0].T-exact_sol), levels=np.linspace(0,0.15,11))
+        # tcf = ax2.tricontourf(x,y,abs(G[0][0].T-exact_sol), levels=np.linspace(0,0.15,11))
+        tcf = ax2.tricontourf(x,y,abs(G[0][0].T-exact_sol))
         fig2.colorbar(tcf)
         ax2.set_title('Contour plot of numerical error')
         plt.savefig('error.png')
@@ -293,6 +333,29 @@ if __name__ == '__main__':
         # for p in ref_list:
         #     ax4.plot(p[0],p[1],'bo')
         plt.savefig('mesh.png')
+
+        fig5 = plt.figure()
+        ax5 = fig5.add_subplot(111, projection='3d')
+        ax5.set_title('Surface')
+        xy = []
+        index = []
+        for i in range(G[0][0].dim):
+            index.append(np.array(range(G[0][0].N[i]+1)))
+        index = np.array(index, dtype=object)
+        for node in itertools.product(*index):
+            nodex = []
+            for i in range(G[0][0].dim):
+                nodex.append(G[0][0].lim[i][0]+node[i]*G[0][0].h[i])
+            nodex = np.array(nodex)
+            xy.append(nodex)
+        x = np.array([item[0] for item in xy])
+        y = np.array([item[1] for item in xy])
+        z = G[0][0].T.copy()
+        X = np.reshape(x, (G[0][0].N[0]+1,G[0][0].N[1]+1))
+        Y = np.reshape(y, (G[0][0].N[0]+1,G[0][0].N[1]+1))
+        Z = np.reshape(z, (G[0][0].N[0]+1,G[0][0].N[1]+1))
+        ax5.plot_surface(X,Y,Z,cmap='Greys')
+        plt.savefig('surface.png')
 
 
     # Plot 3D isosurface

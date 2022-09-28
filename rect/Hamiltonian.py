@@ -126,6 +126,7 @@ def LaxFriedrichs(grid, node, T, WENO):
 
     H = 0
     dxT = []
+    x = grid.findX(node)
     for i in range(grid.dim):
         if WENO:
             [rp,Tp,Tp2] = WENOrp(grid,node,i)
@@ -137,10 +138,11 @@ def LaxFriedrichs(grid, node, T, WENO):
             dxn = (1-wn)*((Tp-Tn)/(2*grid.h[i])) + wn*((3*T-4*Tn+Tn2)/(2*grid.h[i]))
 
             dxT.append((dxp+dxn)/2)
+            H = H + pd.alpha()[i]*((dxp-dxn)/2)
         else:
             [Tn,Tp] = LeftRight(grid,node,i)
             dxT.append(dT(grid,[Tn,Tp],i))
-        H = H + pd.alpha()[i]*(Tp-2*T+Tn)/(2*grid.h[i])
-    H = pd.Hamiltonian(dxT) - H
+            H = H + pd.alpha()[i]*(Tp-2*T+Tn)/(2*grid.h[i])
+    H = pd.Hamiltonian(x,dxT) - H
 
-    return H
+    return [H, dxT]

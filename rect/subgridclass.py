@@ -168,8 +168,11 @@ class subgrid:
 
                     T = self.T[id]
 
-                    f = pd.f(x)
-                    Tbar = f - Hamiltonian.LaxFriedrichs(self,node,T,WENO)
+                    # f = pd.f(x)
+                    # [Tbar, dxT] = f - Hamiltonian.LaxFriedrichs(self,node,T,WENO)
+                    [H, dxT] = Hamiltonian.LaxFriedrichs(self,node,T,WENO)
+                    f = pd.f(x,dxT)
+                    Tbar = f - H
 
                     denom = 0
                     for i in range(self.dim):
