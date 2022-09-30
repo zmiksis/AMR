@@ -21,26 +21,55 @@ if __name__ == '__main__':
     # Use high order sweeping
     highOrder = False
     # Set first order convergence tolerance
-    conv_tol = 1e-2
+    conv_tol = 1e-13
     # Set high order convergence tolerance
-    HO_conv_tol = 1e-2
+    HO_conv_tol = 1e-5
 
     # Initialize domain and list of grids
     lim = pd.domain()
     N = pd.grid_size()
 
     # Import image
-    sfs = cv2.imread('vase.png')
+    sfs = cv2.imread('SFS.png')
     sfs = cv2.resize(sfs,(N[0]+1,N[1]+1))
     R = sfs[:,:,2]
     G = sfs[:,:,1]
     B = sfs[:,:,0]
     I = 0.3*R + 0.59*G + 0.11*B
     I /= 255
+    I = list(zip(*I[::-1]))
 
     # Setup initial grid, G[0][0]
     G = [[]]
     grid = subgrid.subgrid(lim,N,I)
+    # Compute image radiance
+    max_error = 0
+    avg_error = 0
+    I = np.zeros((N[0]+1,N[1]+1))
+    for i in range(grid.N[0]+1):
+        for j in range(grid.N[1]+1):
+            node = [i,j]
+            [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,0)
+            p = Hamiltonian.dT(grid,[Txn,Txp],0)
+            [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,1)
+            q = Hamiltonian.dT(grid,[Txn,Txp],1)
+            N = np.divide(np.array([p,q,1]),np.sqrt(p**2 + q**2 + 1))
+            S = np.array([0,0,1])
+            NS = np.dot(N,S)
+            rho = 1
+            A = 0.6 # Works well for surface SFS...why?
+            I[i][j] = A*rho*NS
+            x = grid.findX(node)
+            f = (math.cos(2*math.pi*x[0])*math.sin(2*math.pi*x[1]))**2
+            f += (math.sin(2*math.pi*x[0])*math.cos(2*math.pi*x[1]))**2
+            f = np.sqrt(f)
+            f *= 2*math.pi
+            Itrue = 1/np.sqrt(1 + f**2)
+            max_error = max(max_error,abs(I[i][j]-Itrue))
+            avg_error += abs(I[i][j]-Itrue)
+    grid.I = I.copy()
+    print(max_error)
+    print(avg_error/((grid.N[0]+1)*(grid.N[1]+1)))
     G[0].append(grid)
 
     # Setup exact solution

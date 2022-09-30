@@ -15,7 +15,7 @@ class subgrid:
         self.dim = len(lim)
         self.lim = lim
         self.N = N
-        self.I = list(zip(*I[::-1]))
+        self.I = I
         self.h = []
         for i in range(self.dim):
             self.h.append((self.lim[i][1]-self.lim[i][0])/N[i])
@@ -151,7 +151,8 @@ class subgrid:
                 node_temp = list(node).copy()
                 node_temp[dim] = j-k
                 if node_temp[dim] >= 0:
-                    Tn[k] = Tn[k] + self.coel[j+1]*self.I[self.N[0]-node_temp[0]][node_temp[1]]
+                    # Tn[k] = Tn[k] + self.coel[j+1]*self.I[self.N[0]-node_temp[0]][node_temp[1]]
+                    Tn[k] = Tn[k] + self.coel[j+1]*self.I[node_temp[0]][node_temp[1]]
                 else:
                     Tn[k] = Tn[k] + self.coel[j+1]*Tn[k-j-1]
 
@@ -167,7 +168,8 @@ class subgrid:
                 node_temp = list(node).copy()
                 node_temp[dim] = self.N[dim]+k-j
                 if node_temp[dim] <= self.N[dim]:
-                    Tp[k] = Tp[k] + self.coer[pd.bndry_order()-j]*self.I[self.N[0]-node_temp[0]][node_temp[1]]
+                    # Tp[k] = Tp[k] + self.coer[pd.bndry_order()-j]*self.I[self.N[0]-node_temp[0]][node_temp[1]]
+                    Tp[k] = Tp[k] + self.coer[pd.bndry_order()-j]*self.I[node_temp[0]][node_temp[1]]
                 else:
                     Tp[k] = Tp[k] + self.coer[pd.bndry_order()-j]*Tp[k-j-1]
 

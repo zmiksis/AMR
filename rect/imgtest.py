@@ -12,3 +12,7 @@ I = 0.3*R + 0.59*G + 0.11*B
 I /= 255
 plt.imshow(sfs)
 plt.show()
+
+I = list(zip(*I[::-1]))
+plt.imshow(I)
+plt.show()

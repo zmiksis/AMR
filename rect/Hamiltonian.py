@@ -39,7 +39,8 @@ def LeftRightI(grid, node, dim):
         Tn = grid.extrapolateLeftI(node,dim)
         Tn = Tn[0]
     else:
-        Tn = grid.I[grid.N[0]-node_temp[0]][node_temp[1]]
+        # Tn = grid.I[grid.N[0]-node_temp[0]][node_temp[1]]
+        Tn = grid.I[node_temp[0]][node_temp[1]]
 
     # Get right value
     node_temp = node.copy()
@@ -48,7 +49,8 @@ def LeftRightI(grid, node, dim):
         Tp = grid.extrapolateRightI(node,dim)
         Tp = Tp[0]
     else:
-        Tp = grid.I[grid.N[0]-node_temp[0]][node_temp[1]]
+        # Tp = grid.I[grid.N[0]-node_temp[0]][node_temp[1]]
+        Tp = grid.I[node_temp[0]][node_temp[1]]
 
     return [Tn,Tp]
 

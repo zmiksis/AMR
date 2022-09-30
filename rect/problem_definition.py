@@ -14,10 +14,10 @@ def domain():
     # dom = [[-2,2],[-2,2],[-2,2]]
 
     # Vase
-    dom = [[-0.5,0.5],[0,1]]
+    # dom = [[-0.5,0.5],[0,1]]
 
     # SFS
-    # dom = [[0,1],[0,1]]
+    dom = [[0,1],[0,1]]
 
     return dom
 
@@ -107,15 +107,15 @@ def gamma_region(xval):
     #     return False
 
     # Vase
-    x = xval[0]
-    y = xval[1]
-    # xbnd = (54/5)*(-1.1266+y)*(0.323846+y)*(0.685836-1.61301*y+y**2)*(0.055506+0.0824245*y+y*2)
-    if math.dist([x,y],[0,0.36621]) < 1e-1:
-        return True
-    elif abs(0.5-abs(x)) < 1e-1:
-        return True
-    else:
-        return False
+    # x = xval[0]
+    # y = xval[1]
+    # # xbnd = (54/5)*(-1.1266+y)*(0.323846+y)*(0.685836-1.61301*y+y**2)*(0.055506+0.0824245*y+y*2)
+    # if math.dist([x,y],[0,0.36621]) < 1e-1:
+    #     return True
+    # elif abs(0.5-abs(x)) < 1e-1:
+    #     return True
+    # else:
+    #     return False
     # elif abs(y) < 0.2 or abs(1-y) < 1e-2:
     #     return True
     # elif math.dist([x,y],[0,0]) < 1e-2 or math.dist([x,y],[0,1]) < 1e-2:
@@ -124,16 +124,16 @@ def gamma_region(xval):
     #     return True
 
     # SFS
-    # x = xval[0]
-    # y = xval[1]
-    # if abs(x) < 1e-5 or abs(1-x) < 1e-5 or abs(y) < 1e-5 or abs(1-y) < 1e-5:
-    #     return True
-    # elif math.dist([x,y],[1/4,1/4]) < 1e-5 or math.dist([x,y],[1/4,3/4]) < 1e-5 \
-    #     or math.dist([x,y],[3/4,1/4]) < 1e-5 or math.dist([x,y],[3/4,3/4]) < 1e-5 \
-    #     or math.dist([x,y],[1/2,1/2]) < 1e-5:
-    #     return True
-    # else:
-    #     return False
+    x = xval[0]
+    y = xval[1]
+    if abs(x) < 1e-5 or abs(1-x) < 1e-5 or abs(y) < 1e-5 or abs(1-y) < 1e-5:
+        return True
+    elif math.dist([x,y],[1/4,1/4]) < 1e-5 or math.dist([x,y],[1/4,3/4]) < 1e-5 \
+        or math.dist([x,y],[3/4,1/4]) < 1e-5 or math.dist([x,y],[3/4,3/4]) < 1e-5 \
+        or math.dist([x,y],[1/2,1/2]) < 1e-5:
+        return True
+    else:
+        return False
 
 def f(xval, Dx, grid):
 
@@ -150,18 +150,31 @@ def f(xval, Dx, grid):
     x = xval[0]
     y = xval[1]
     node = grid.findNode(xval)
-    [Txn,Txp] = Hml.LeftRightI(grid,node,0)
-    p = Hml.dT(grid,[Txn,Txp],0)
-    [Txn,Txp] = Hml.LeftRightI(grid,node,1)
-    q = Hml.dT(grid,[Txn,Txp],1)
-    N = np.divide(np.array([p,q,-1]),np.sqrt(p**2+q**2+1))
-    S = np.array([0,0,1])
-    NS = np.dot(N,S)
-    rho = 1
-    A = 1
-    I = A*rho*NS
+    # [Txn,Txp] = Hml.LeftRightI(grid,node,0)
+    # p = Hml.dT(grid,[Txn,Txp],0)
+    # [Txn,Txp] = Hml.LeftRightI(grid,node,1)
+    # q = Hml.dT(grid,[Txn,Txp],1)
+    # N = np.divide(np.array([p,q,-1]),np.sqrt(p**2+q**2+1))
+    # S = np.array([0,0,1])
+    # NS = np.dot(N,S)
+    # rho = 1
+    # A = 1
+    # I = A*rho*NS
+    I = grid.I[node[0]][node[1]]
     if I == 0: I = 1e-6
     rhs = np.sqrt((1/I**2) - 1)
+
+    # p = Dx[0]
+    # q = Dx[1]
+    # I = 1/np.sqrt(1+p**2+q**2)
+    # rhs = np.sqrt((1/I**2) - 1)
+    #
+    # ftrue = (math.cos(2*math.pi*x)*math.sin(2*math.pi*y))**2
+    # ftrue += (math.sin(2*math.pi*x)*math.cos(2*math.pi*y))**2
+    # ftrue = np.sqrt(ftrue)
+    # ftrue *= 2*math.pi
+    # Itrue = 1/np.sqrt(1 + ftrue**2)
+    # print(abs(I-Itrue))
 
     return rhs
 
@@ -192,19 +205,19 @@ def exact(xval):
     # d = min(d1,d2)
 
     # Vase
-    x = xval[0]
-    y = xval[1]
-    fy = 0.15 - 0.1*y*((6*y+1)**2)*((y-1)**2)*(3*y-2)
-    z = fy**2 - x**2
-    if z < 0:
-        d = 0
-    else:
-        d = np.sqrt(z)
-
-    # SFS
     # x = xval[0]
     # y = xval[1]
-    # d = math.sin(2*math.pi*x)*math.sin(2*math.pi*y)
+    # fy = 0.15 - 0.1*y*((6*y+1)**2)*((y-1)**2)*(3*y-2)
+    # z = fy**2 - x**2
+    # if z < 0:
+    #     d = 0
+    # else:
+    #     d = np.sqrt(z)
+
+    # SFS
+    x = xval[0]
+    y = xval[1]
+    d = math.sin(2*math.pi*x)*math.sin(2*math.pi*y)
 
 
     return d
