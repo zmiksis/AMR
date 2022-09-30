@@ -30,6 +30,30 @@ def LeftRight(grid, node, dim):
 
 ###############################################################################
 
+def LeftRightI(grid, node, dim):
+
+    # Get left value
+    node_temp = list(node).copy()
+    node_temp[dim] = node_temp[dim]-1
+    if node_temp[dim] == -1:
+        Tn = grid.extrapolateLeftI(node,dim)
+        Tn = Tn[0]
+    else:
+        Tn = grid.I[grid.N[0]-node_temp[0]][node_temp[1]]
+
+    # Get right value
+    node_temp = node.copy()
+    node_temp[dim] = node_temp[dim]+1
+    if node_temp[dim] == grid.N[dim]+1:
+        Tp = grid.extrapolateRightI(node,dim)
+        Tp = Tp[0]
+    else:
+        Tp = grid.I[grid.N[0]-node_temp[0]][node_temp[1]]
+
+    return [Tn,Tp]
+
+###############################################################################
+
 def dT(grid, T, dim):
 
     dT = (T[1]-T[0])/(2*grid.h[dim])
@@ -143,6 +167,7 @@ def LaxFriedrichs(grid, node, T, WENO):
             [Tn,Tp] = LeftRight(grid,node,i)
             dxT.append(dT(grid,[Tn,Tp],i))
             H = H + pd.alpha()[i]*(Tp-2*T+Tn)/(2*grid.h[i])
+            # H = H + pd.alpha()[i]*(Tp+Tn)/(2*grid.h[i])
     H = pd.Hamiltonian(x,dxT) - H
 
     return [H, dxT]

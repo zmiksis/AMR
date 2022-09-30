@@ -7,6 +7,7 @@ import itertools
 import plotly.graph_objects as go
 import seaborn as sns
 from sklearn.cluster import KMeans
+import cv2
 
 import subgridclass as subgrid
 import problem_definition as pd
@@ -20,17 +21,26 @@ if __name__ == '__main__':
     # Use high order sweeping
     highOrder = False
     # Set first order convergence tolerance
-    conv_tol = 1e-4
+    conv_tol = 1e-2
     # Set high order convergence tolerance
-    HO_conv_tol = 5e-2
+    HO_conv_tol = 1e-2
 
     # Initialize domain and list of grids
     lim = pd.domain()
     N = pd.grid_size()
-    G = [[]]
+
+    # Import image
+    sfs = cv2.imread('vase.png')
+    sfs = cv2.resize(sfs,(N[0]+1,N[1]+1))
+    R = sfs[:,:,2]
+    G = sfs[:,:,1]
+    B = sfs[:,:,0]
+    I = 0.3*R + 0.59*G + 0.11*B
+    I /= 255
 
     # Setup initial grid, G[0][0]
-    grid = subgrid.subgrid(lim,N)
+    G = [[]]
+    grid = subgrid.subgrid(lim,N,I)
     G[0].append(grid)
 
     # Setup exact solution

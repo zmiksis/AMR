@@ -7,7 +7,7 @@ import general_functions as gen
 
 class subgrid:
 
-    def __init__(self, lim, N):
+    def __init__(self, lim, N, I):
     # Input:    lim - vector of domain boundaries
     #           N - vector of cell counts
 
@@ -15,6 +15,7 @@ class subgrid:
         self.dim = len(lim)
         self.lim = lim
         self.N = N
+        self.I = list(zip(*I[::-1]))
         self.h = []
         for i in range(self.dim):
             self.h.append((self.lim[i][1]-self.lim[i][0])/N[i])
@@ -142,6 +143,38 @@ class subgrid:
 
 ###############################################################################
 
+    def extrapolateLeftI(self, node, dim):
+
+        Tn = np.zeros(pd.bndry_order())
+        for k in range(pd.bndry_order()):
+            for j in range(pd.bndry_order()):
+                node_temp = list(node).copy()
+                node_temp[dim] = j-k
+                if node_temp[dim] >= 0:
+                    Tn[k] = Tn[k] + self.coel[j+1]*self.I[self.N[0]-node_temp[0]][node_temp[1]]
+                else:
+                    Tn[k] = Tn[k] + self.coel[j+1]*Tn[k-j-1]
+
+        return Tn
+
+###############################################################################
+
+    def extrapolateRightI(self, node, dim):
+
+        Tp = np.zeros(pd.bndry_order())
+        for k in range(pd.bndry_order()):
+            for j in range(pd.bndry_order()):
+                node_temp = list(node).copy()
+                node_temp[dim] = self.N[dim]+k-j
+                if node_temp[dim] <= self.N[dim]:
+                    Tp[k] = Tp[k] + self.coer[pd.bndry_order()-j]*self.I[self.N[0]-node_temp[0]][node_temp[1]]
+                else:
+                    Tp[k] = Tp[k] + self.coer[pd.bndry_order()-j]*Tp[k-j-1]
+
+        return Tp
+
+###############################################################################
+
     def sweep(self, WENO = False):
 
         gamma = pd.gamma()
@@ -168,18 +201,33 @@ class subgrid:
 
                     T = self.T[id]
 
-                    # f = pd.f(x)
-                    # [Tbar, dxT] = f - Hamiltonian.LaxFriedrichs(self,node,T,WENO)
                     [H, dxT] = Hamiltonian.LaxFriedrichs(self,node,T,WENO)
-                    f = pd.f(x,dxT)
-                    Tbar = f - H
+                    f = pd.f(x,dxT,self)
 
+                    # Lax-Friedrichs sweeping
+                    Tbar = f - H
                     denom = 0
                     for i in range(self.dim):
                         denom = denom + pd.alpha()[i]/self.h[i]
                     Tbar = Tbar/denom
                     Tbar = gamma*Tbar
                     Tbar = Tbar + T
+
+                    # Godunov sweeping
+                    # [Tn,Tp] = Hamiltonian.LeftRight(self,node,0)
+                    # Txmin = min(Tn,Tp)
+                    # [Tn,Tp] = Hamiltonian.LeftRight(self,node,1)
+                    # Tymin = min(Tn,Tp)
+                    # r = self.h[0]/self.h[1]
+                    # if abs(Txmin-Tymin) >= self.h[0]*f and Txmin <= Tymin:
+                    #     Tbar = Txmin + self.h[0]*f
+                    # elif abs(Txmin-Tymin) >= self.h[1]*f and Txmin >= Tymin:
+                    #     Tbar = Tymin + self.h[1]*f
+                    # else:
+                    #     Tbar = (Txmin/r + Tymin*r \
+                    #             + np.sqrt((f**2)*(self.h[0]**2 + self.h[1]**2) \
+                    #             - (Txmin - Tymin)**2))/(r + 1/r)
+                    # Tbar = min(Tbar,T)
 
                     # Find list id
                     id = self.findID(node)

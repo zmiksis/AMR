@@ -1,5 +1,6 @@
 import math
 import numpy as np
+import Hamiltonian as Hml
 
 def domain():
 
@@ -14,6 +15,9 @@ def domain():
 
     # Vase
     dom = [[-0.5,0.5],[0,1]]
+
+    # SFS
+    # dom = [[0,1],[0,1]]
 
     return dom
 
@@ -56,59 +60,11 @@ def Hamiltonian(xpoint, xval):
     # H = np.sqrt(x**2 + y**2 + z**2)
 
     # Shape-from-shading
-    # f = 1
-    # alpha, beta, gam = 0, 0, 1
-    # x = xpoint[0]
-    # y = xpoint[1]
-    # xx = xval[0]
-    # yy = xval[1]
-    #
-    # # I = f*(alpha*xx + beta*yy) + gam*(x*xx + y*yy + 1)
-    # # I /= np.sqrt(f*f*(xx**2 + yy**2) + (x*xx + y*yy +1)**2)
-    # slant = math.acos(gam)
-    # tilt = math.atan(beta/(alpha+1e-5))
-    # I = math.cos(slant) + xx*math.cos(tilt)*math.sin(slant) + yy*math.sin(tilt)*math.sin(slant)
-    # I /= np.sqrt(1 + xx**2 + yy**2)
-    # H = I*np.sqrt(f*f*(xx**2 + yy**2) + (x*xx + y*yy +1)**2)
-    # H -= (f*alpha + gam*x)*xx
-    # H -= (f*beta + gam*y)*yy
-    # H -= gam
-
     x = xpoint[0]
     y = xpoint[1]
     p = xval[0]
     q = xval[1]
-    sigma = 0
-    wd = 1
-    ws = 0
-    n = 10
-    A = 1 - (0.5*sigma**2)/(sigma**2 + 0.33)
-    B = (0.45*sigma**2)/(sigma**2 + 0.09)
-    Itmp = 1/np.sqrt(1+p**2+q**2)
-    I = wd*(A*Itmp + B - B*Itmp**2) + ws*Itmp**n
-    # Tk = 0
-    # Tkn = 1
-    # while abs(Tk - Tkn) > 1e-8:
-    #     Tkn = Tk
-    #     FT = ws*Tk**n - B*wd*Tk**2 + A*wd*Tk + B*wd - I
-    #     FpT = n*ws*Tk**(n-1) + wd*(A - 2*B*Tk)
-    #     Tk = Tkn - FT/FpT
-    # T = Tk
-    p0 = p-1e-6
-    q0 = q-1e-6
-    # T = (q0-q)*q0/((1+p0**2+q0**2)**(3/2)) + 1/np.sqrt(1+p0**2+q0**2) \
-    #     + ((q-q0)**2)*(2*q0**2-p0**2-1)/(2*(1+p0**2+q0**2)**(5/2)) \
-    #     + (p-p0)*(3*p0*(q-q0)**2*(1+p0**2-4*q0**2)/(2*(1+p0**2+q0**2)**(7/2)) \
-    #                 + 3*p0*(q-q0)*q0/((1+p0**2+q0**2)**(5/2)) \
-    #                 - p0/((1+p0**2+q0**2)**(3/2))) \
-    #     + ((p-p0)**2)*(3*(q-q0)*q0*(1-4*p0**2+q0**2)/(2*(1+p0**2+q0**2)**(7/2)) \
-    #                     + (2*p0**2-q0**2-1)/(2*(1+p0**2+q0**2)**(5/2)) \
-    #                     - 3*(q-q0)**2*(4*p0**4-1+3*q0**2+4*q0**4+p0**2*(3-27*q0**2))/(4*(1+p0**2+q0**2)**(9/2)))
-    T = (q0-q)*q0/((1+p0**2+q0**2)**(3/2)) + 1/np.sqrt(1+p0**2+q0**2) \
-        + (p-p0)*(3*p0*(q-q0)*q0/((1+p0**2+q0**2)**(5/2)) \
-                    - p0/((1+p0**2+q0**2)**(3/2)))
-    # H = np.sqrt(p**2+q**2) - np.sqrt((1/(T**2))-1)
-    H = ws*T**n - B*wd*T**2 + A*wd*T + B*wd - I
+    H = np.sqrt(p**2 + q**2)
 
 
     return H
@@ -153,15 +109,13 @@ def gamma_region(xval):
     # Vase
     x = xval[0]
     y = xval[1]
-    xbnd = (54/5)*(-1.1266+y)*(0.323846+y)*(0.685836-1.61301*y+y**2)*(0.055506+0.0824245*y+y*2)
-    if math.dist([x,y],[0,0.36621]) < 1e-2:
+    # xbnd = (54/5)*(-1.1266+y)*(0.323846+y)*(0.685836-1.61301*y+y**2)*(0.055506+0.0824245*y+y*2)
+    if math.dist([x,y],[0,0.36621]) < 1e-1:
         return True
-    elif abs(0.5-abs(x)) < 1e-2:
+    elif abs(0.5-abs(x)) < 1e-1:
         return True
     else:
         return False
-
-
     # elif abs(y) < 0.2 or abs(1-y) < 1e-2:
     #     return True
     # elif math.dist([x,y],[0,0]) < 1e-2 or math.dist([x,y],[0,1]) < 1e-2:
@@ -169,8 +123,19 @@ def gamma_region(xval):
     # elif x < xbnd or x > -xbnd:
     #     return True
 
+    # SFS
+    # x = xval[0]
+    # y = xval[1]
+    # if abs(x) < 1e-5 or abs(1-x) < 1e-5 or abs(y) < 1e-5 or abs(1-y) < 1e-5:
+    #     return True
+    # elif math.dist([x,y],[1/4,1/4]) < 1e-5 or math.dist([x,y],[1/4,3/4]) < 1e-5 \
+    #     or math.dist([x,y],[3/4,1/4]) < 1e-5 or math.dist([x,y],[3/4,3/4]) < 1e-5 \
+    #     or math.dist([x,y],[1/2,1/2]) < 1e-5:
+    #     return True
+    # else:
+    #     return False
 
-def f(xval, Dx):
+def f(xval, Dx, grid):
 
     # Two point
     # rhs = 1
@@ -182,7 +147,21 @@ def f(xval, Dx):
     # rhs = 1
 
     # Shape-from-shading
-    rhs = 0
+    x = xval[0]
+    y = xval[1]
+    node = grid.findNode(xval)
+    [Txn,Txp] = Hml.LeftRightI(grid,node,0)
+    p = Hml.dT(grid,[Txn,Txp],0)
+    [Txn,Txp] = Hml.LeftRightI(grid,node,1)
+    q = Hml.dT(grid,[Txn,Txp],1)
+    N = np.divide(np.array([p,q,-1]),np.sqrt(p**2+q**2+1))
+    S = np.array([0,0,1])
+    NS = np.dot(N,S)
+    rho = 1
+    A = 1
+    I = A*rho*NS
+    if I == 0: I = 1e-6
+    rhs = np.sqrt((1/I**2) - 1)
 
     return rhs
 
@@ -221,6 +200,11 @@ def exact(xval):
         d = 0
     else:
         d = np.sqrt(z)
+
+    # SFS
+    # x = xval[0]
+    # y = xval[1]
+    # d = math.sin(2*math.pi*x)*math.sin(2*math.pi*y)
 
 
     return d
