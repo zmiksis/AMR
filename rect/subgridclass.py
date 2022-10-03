@@ -15,7 +15,7 @@ class subgrid:
         self.dim = len(lim)
         self.lim = lim
         self.N = N
-        self.I = I
+        self.I = I.copy()
         self.h = []
         for i in range(self.dim):
             self.h.append((self.lim[i][1]-self.lim[i][0])/N[i])
@@ -50,7 +50,12 @@ class subgrid:
             x = self.findX(node)
             if pd.gamma_region(x):
                 id = self.findID(node)
-                self.T[id] = pd.exact(x)
+                if abs(x[0]-lim[0][0]) < 1e-2 or abs(x[0]-lim[0][1]) < 1e-2:
+                     self.T[id] = 0
+                elif abs(x[1]-lim[1][0]) < 1e-2 or abs(x[1]-lim[1][1]) < 1e-2:
+                    self.T[id] = 0
+                else:
+                    self.T[id] = pd.exact(x)
 
 ###############################################################################
 

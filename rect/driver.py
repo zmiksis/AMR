@@ -21,7 +21,7 @@ if __name__ == '__main__':
     # Use high order sweeping
     highOrder = False
     # Set first order convergence tolerance
-    conv_tol = 1e-13
+    conv_tol = 1e-11
     # Set high order convergence tolerance
     HO_conv_tol = 1e-5
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
     N = pd.grid_size()
 
     # Import image
-    sfs = cv2.imread('SFS.png')
+    sfs = cv2.imread('vase.png')
     sfs = cv2.resize(sfs,(N[0]+1,N[1]+1))
     R = sfs[:,:,2]
     G = sfs[:,:,1]
@@ -50,23 +50,25 @@ if __name__ == '__main__':
         for j in range(grid.N[1]+1):
             node = [i,j]
             [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,0)
-            p = Hamiltonian.dT(grid,[Txn,Txp],0)
+            p = (Txp-Txn)/(2*grid.h[0])
             [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,1)
-            q = Hamiltonian.dT(grid,[Txn,Txp],1)
-            N = np.divide(np.array([p,q,1]),np.sqrt(p**2 + q**2 + 1))
-            S = np.array([0,0,1])
-            NS = np.dot(N,S)
-            rho = 1
-            A = 0.6 # Works well for surface SFS...why?
-            I[i][j] = A*rho*NS
-            x = grid.findX(node)
-            f = (math.cos(2*math.pi*x[0])*math.sin(2*math.pi*x[1]))**2
-            f += (math.sin(2*math.pi*x[0])*math.cos(2*math.pi*x[1]))**2
-            f = np.sqrt(f)
-            f *= 2*math.pi
-            Itrue = 1/np.sqrt(1 + f**2)
-            max_error = max(max_error,abs(I[i][j]-Itrue))
-            avg_error += abs(I[i][j]-Itrue)
+            q = (Txp-Txn)/(2*grid.h[1])
+    #         N = np.divide(np.array([p,q,1]),np.sqrt(p**2 + q**2 + 1))
+    #         S = np.array([0,0,1])
+    #         NS = np.dot(N,S)
+    #         rho = 1
+    #         A = 1 # Works well for surface SFS...why?
+    #         I[i][j] = A*rho*NS
+            I[i][j] = 1/np.sqrt(p**2 + q**2 + 1)
+            # x = grid.findX(node)
+            # f = (math.cos(2*math.pi*x[0])*math.sin(2*math.pi*x[1]))**2
+            # f += (math.sin(2*math.pi*x[0])*math.cos(2*math.pi*x[1]))**2
+            # f = np.sqrt(f)
+            # f *= 2*math.pi
+            # Itrue = 1/np.sqrt(1 + f**2)
+            # max_error = max(max_error,abs(I[i][j]-Itrue))
+            # avg_error += abs(I[i][j]-Itrue)
+    # I = np.divide(I,np.max(I))
     grid.I = I.copy()
     print(max_error)
     print(avg_error/((grid.N[0]+1)*(grid.N[1]+1)))
