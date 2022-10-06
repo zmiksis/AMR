@@ -19,59 +19,55 @@ if __name__ == '__main__':
     # Turn AMR on/off
     AMR = False
     # Use high order sweeping
-    highOrder = False
+    highOrder = True
     # Set first order convergence tolerance
-    conv_tol = 1e-11
+    conv_tol = 1e-2
     # Set high order convergence tolerance
-    HO_conv_tol = 1e-5
+    HO_conv_tol = 1e-3
 
     # Initialize domain and list of grids
     lim = pd.domain()
     N = pd.grid_size()
 
     # Import image
-    sfs = cv2.imread('vase.png')
+    sfs = cv2.imread('vase-I.png')
+    # sfs = cv2.imread('illumination-low.png')
+    # sfs = cv2.imread('vase-oblique-I.png')
     sfs = cv2.resize(sfs,(N[0]+1,N[1]+1))
+    # Get normalized B/W values
     R = sfs[:,:,2]
     G = sfs[:,:,1]
     B = sfs[:,:,0]
     I = 0.3*R + 0.59*G + 0.11*B
     I /= 255
+    # Rotate so (0,0) is bottom-left of image
     I = list(zip(*I[::-1]))
+    # Reset values: 1 - peak, 0 - valley
+    I = np.subtract(1,I)
 
     # Setup initial grid, G[0][0]
     G = [[]]
     grid = subgrid.subgrid(lim,N,I)
     # Compute image radiance
-    max_error = 0
-    avg_error = 0
-    I = np.zeros((N[0]+1,N[1]+1))
-    for i in range(grid.N[0]+1):
-        for j in range(grid.N[1]+1):
-            node = [i,j]
-            [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,0)
-            p = (Txp-Txn)/(2*grid.h[0])
-            [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,1)
-            q = (Txp-Txn)/(2*grid.h[1])
-    #         N = np.divide(np.array([p,q,1]),np.sqrt(p**2 + q**2 + 1))
-    #         S = np.array([0,0,1])
-    #         NS = np.dot(N,S)
-    #         rho = 1
-    #         A = 1 # Works well for surface SFS...why?
-    #         I[i][j] = A*rho*NS
-            I[i][j] = 1/np.sqrt(p**2 + q**2 + 1)
-            # x = grid.findX(node)
-            # f = (math.cos(2*math.pi*x[0])*math.sin(2*math.pi*x[1]))**2
-            # f += (math.sin(2*math.pi*x[0])*math.cos(2*math.pi*x[1]))**2
-            # f = np.sqrt(f)
-            # f *= 2*math.pi
-            # Itrue = 1/np.sqrt(1 + f**2)
-            # max_error = max(max_error,abs(I[i][j]-Itrue))
-            # avg_error += abs(I[i][j]-Itrue)
-    # I = np.divide(I,np.max(I))
-    grid.I = I.copy()
-    print(max_error)
-    print(avg_error/((grid.N[0]+1)*(grid.N[1]+1)))
+    # I = np.zeros((N[0]+1,N[1]+1))
+    # for i in range(grid.N[0]+1):
+    #     for j in range(grid.N[1]+1):
+    #         node = [i,j]
+    #         [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,0)
+    #         p = (Txp-Txn)/(2*grid.h[0])
+    #         [Txn,Txp] = Hamiltonian.LeftRightI(grid,node,1)
+    #         q = (Txp-Txn)/(2*grid.h[1])
+    # #         N = np.divide(np.array([p,q,1]),np.sqrt(p**2 + q**2 + 1))
+    # #         S = np.array([0,0,1])
+    # #         NS = np.dot(N,S)
+    # #         rho = 1
+    # #         A = 1 # Works well for surface SFS...why?
+    # #         I[i][j] = A*rho*NS
+    #         if p == 0 and q == 0:
+    #             I[i][j] = 0
+    #         else:
+    #             I[i][j] = 1/np.sqrt(p**2 + q**2 + 1)
+    grid.I = np.array(I)  #.copy()
     G[0].append(grid)
 
     # Setup exact solution
@@ -98,23 +94,40 @@ if __name__ == '__main__':
     t0 = time.time()
 
     # Implement sweeping here
-    G[0][0].sweep()
+    G[0][0].sweep(1)
     iterate = iterate + 1
     while max(abs(G[0][0].T-T_old)) > conv_tol:
         T_old = G[0][0].T.copy()
-        G[0][0].sweep()
+        G[0][0].sweep(1)
         iterate = iterate + 1
         print('G-S convergence error:',max(abs(G[0][0].T-T_old)))
 
+    G[0][0].sweep(2)
+    iterate = iterate + 1
+    while max(abs(G[0][0].T-T_old)) > conv_tol:
+        T_old = G[0][0].T.copy()
+        G[0][0].sweep(2)
+        iterate = iterate + 1
+        print('Pass 2 G-S convergence error:',max(abs(G[0][0].T-T_old)))
+
     if highOrder:
         T_old = G[0][0].T.copy()
-        G[0][0].sweep(True)
+        G[0][0].sweep(1,True)
         iterate = iterate + 1
         while max(abs(G[0][0].T-T_old)) > HO_conv_tol:
             T_old = G[0][0].T.copy()
-            G[0][0].sweep(True)
+            G[0][0].sweep(1,True)
             iterate = iterate + 1
             print('WENO G-S convergence error:',max(abs(G[0][0].T-T_old)))
+
+        T_old = G[0][0].T.copy()
+        G[0][0].sweep(2,True)
+        iterate = iterate + 1
+        while max(abs(G[0][0].T-T_old)) > HO_conv_tol:
+            T_old = G[0][0].T.copy()
+            G[0][0].sweep(2,True)
+            iterate = iterate + 1
+            print('Pass 2 WENO G-S convergence error:',max(abs(G[0][0].T-T_old)))
 
     if AMR:
         # Only refine once (L^8 error not changing)
@@ -186,9 +199,9 @@ if __name__ == '__main__':
             T_old = G[0][0].T.copy()
             for lvl in range(ref_lvl+1,0,-1):
                 for g in range(1,len(G[ref_lvl+1])):
-                    G[lvl][g].sweep()
+                    G[lvl][g].sweep(1)
                     G = mr.send_values(G,lvl,g)
-            G[0][0].sweep()
+            G[0][0].sweep(1)
             iterate = iterate + 1
             while max(abs(G[0][0].T-T_old)) > 1e-13:
                 T_old = G[0][0].T.copy()
@@ -196,9 +209,9 @@ if __name__ == '__main__':
                     for g in range(1,len(G[lvl])):
                         G = mr.get_values(G,lvl,g)
                         G[lvl][g] = mr.interpolate_interior(G[lvl][g],G,lvl-1,0)
-                        G[lvl][g].sweep()
+                        G[lvl][g].sweep(1)
                         G = mr.send_values(G,lvl,g)
-                G[0][0].sweep()
+                G[0][0].sweep(1)
                 iterate = iterate + 1
                 print('Correction G-S convergence error:',max(abs(G[0][0].T-T_old)))
 
@@ -331,49 +344,49 @@ if __name__ == '__main__':
         # ax3.set_title('Contour plot of WENO indicator')
         # plt.savefig('indicator.png')
 
-        fig4, ax4 = plt.subplots()
-        ax4.set_aspect('equal')
-        ax4.set_title('Mesh')
-        xy = []
-        index = []
-        for i in range(G[0][0].dim):
-            index.append(np.array(range(G[0][0].N[i]+1)))
-        index = np.array(index, dtype=object)
-        for node in itertools.product(*index):
-            nodex = []
-            for i in range(G[0][0].dim):
-                nodex.append(G[0][0].lim[i][0]+node[i]*G[0][0].h[i])
-            nodex = np.array(nodex)
-            xy.append(nodex)
-        x = np.array([item[0] for item in xy])
-        y = np.array([item[1] for item in xy])
-        for i in range(len(y)):
-            ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
-        for i in range(len(x)):
-            ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
-        # Plot new grids
-        for l in range(1,len(G)):
-            for g in range(1,len(G[l])):
-                xy = []
-                index = []
-                for i in range(G[l][g].dim):
-                    index.append(np.array(range(G[l][g].N[i]+1)))
-                index = np.array(index, dtype=object)
-                for node in itertools.product(*index):
-                    nodex = []
-                    for i in range(G[l][g].dim):
-                        nodex.append(G[l][g].lim[i][0]+node[i]*G[l][g].h[i])
-                    nodex = np.array(nodex)
-                    xy.append(nodex)
-                x = np.array([item[0] for item in xy])
-                y = np.array([item[1] for item in xy])
-                for i in range(len(y)):
-                    ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
-                for i in range(len(x)):
-                    ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
-        # for p in ref_list:
-        #     ax4.plot(p[0],p[1],'bo')
-        plt.savefig('mesh.png')
+        # fig4, ax4 = plt.subplots()
+        # ax4.set_aspect('equal')
+        # ax4.set_title('Mesh')
+        # xy = []
+        # index = []
+        # for i in range(G[0][0].dim):
+        #     index.append(np.array(range(G[0][0].N[i]+1)))
+        # index = np.array(index, dtype=object)
+        # for node in itertools.product(*index):
+        #     nodex = []
+        #     for i in range(G[0][0].dim):
+        #         nodex.append(G[0][0].lim[i][0]+node[i]*G[0][0].h[i])
+        #     nodex = np.array(nodex)
+        #     xy.append(nodex)
+        # x = np.array([item[0] for item in xy])
+        # y = np.array([item[1] for item in xy])
+        # for i in range(len(y)):
+        #     ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
+        # for i in range(len(x)):
+        #     ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
+        # # Plot new grids
+        # for l in range(1,len(G)):
+        #     for g in range(1,len(G[l])):
+        #         xy = []
+        #         index = []
+        #         for i in range(G[l][g].dim):
+        #             index.append(np.array(range(G[l][g].N[i]+1)))
+        #         index = np.array(index, dtype=object)
+        #         for node in itertools.product(*index):
+        #             nodex = []
+        #             for i in range(G[l][g].dim):
+        #                 nodex.append(G[l][g].lim[i][0]+node[i]*G[l][g].h[i])
+        #             nodex = np.array(nodex)
+        #             xy.append(nodex)
+        #         x = np.array([item[0] for item in xy])
+        #         y = np.array([item[1] for item in xy])
+        #         for i in range(len(y)):
+        #             ax4.plot([min(x),max(x)],[y[i],y[i]],'r-',linewidth=0.5)
+        #         for i in range(len(x)):
+        #             ax4.plot([x[i],x[i]],[min(y),max(y)],'r-',linewidth=0.5)
+        # # for p in ref_list:
+        # #     ax4.plot(p[0],p[1],'bo')
+        # plt.savefig('mesh.png')
 
         fig5 = plt.figure()
         ax5 = fig5.add_subplot(111, projection='3d')

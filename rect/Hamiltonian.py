@@ -59,6 +59,10 @@ def LeftRightI(grid, node, dim):
 def dT(grid, T, dim):
 
     dT = (T[1]-T[0])/(2*grid.h[dim])
+    # dT = (T[3]-T[1])/(2*grid.h[dim])
+    # dT += (T[0]-2*T[1]+2*T[2]-2*T[3]+T[4])/(4*grid.h[dim])
+    # dT += (T[1]-2*T[2]+T[3])/(2*grid.h[dim])
+
 
     return dT
 
@@ -148,7 +152,7 @@ def WENOrn(grid, node, dim):
 
 ###############################################################################
 
-def LaxFriedrichs(grid, node, T, WENO):
+def LaxFriedrichs(grid, node, T, sweepPass, WENO):
 
     H = 0
     dxT = []
@@ -167,9 +171,17 @@ def LaxFriedrichs(grid, node, T, WENO):
             H = H + pd.alpha()[i]*((dxp-dxn)/2)
         else:
             [Tn,Tp] = LeftRight(grid,node,i)
+            node_left = node.copy()
+            node_left[i] -= 1
+            [Tnn,Tpn] = LeftRight(grid,node_left,i)
+            node_right = node.copy()
+            node_right[i] += 1
+            [Tnp,Tpp] = LeftRight(grid,node_right,i)
             dxT.append(dT(grid,[Tn,Tp],i))
-            H = H + pd.alpha()[i]*(Tp-2*T+Tn)/(2*grid.h[i])
-            # H = H + pd.alpha()[i]*(Tp+Tn)/(2*grid.h[i])
-    H = pd.Hamiltonian(x,dxT) - H
+            # dxT.append(dT(grid,[Tnn,Tn,T,Tp,Tpp],i))
+            # H = H + pd.alpha()[i]*(Tp-2*T+Tn)/(2*grid.h[i])
+            H = H + pd.alpha()[i]*(Tp+Tn)/(2*grid.h[i])
+    I = grid.I[node[0],node[1]]
+    H = pd.Hamiltonian(x,dxT,I,sweepPass) - H
 
     return [H, dxT]

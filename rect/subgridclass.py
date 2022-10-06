@@ -34,7 +34,7 @@ class subgrid:
         Nsize = 1
         for i in range(self.dim):
             Nsize = Nsize*(self.N[i]+1)
-        self.T = 10*np.ones(Nsize)
+        self.T = 1*np.ones(Nsize)
         self.locked = np.zeros(Nsize)
         self.ref_flags = np.zeros((N[0]+1,N[1]+1))
 
@@ -50,6 +50,7 @@ class subgrid:
             x = self.findX(node)
             if pd.gamma_region(x):
                 id = self.findID(node)
+                # Boundaries for SFS  problems
                 if abs(x[0]-lim[0][0]) < 1e-2 or abs(x[0]-lim[0][1]) < 1e-2:
                      self.T[id] = 0
                 elif abs(x[1]-lim[1][0]) < 1e-2 or abs(x[1]-lim[1][1]) < 1e-2:
@@ -182,7 +183,7 @@ class subgrid:
 
 ###############################################################################
 
-    def sweep(self, WENO = False):
+    def sweep(self, sweepPass, WENO = False):
 
         gamma = pd.gamma()
         # Sweep over each direction
@@ -196,29 +197,36 @@ class subgrid:
                     index.append(np.array(range(self.N[i],-1,-1)))
             index = np.array(index, dtype=object)
 
-            # Compute on each node
+            # Compute on each interior node
             for idx in itertools.product(*index):
                 node = np.array(idx)
+                if node[0] == 0 or node[0] == self.N[0] or node[1] == 0 or node[1] == self.N[1]:
+                    bndry = True
+                else:
+                    bndry = False
+                if WENO: bndry = False
                 # Find current grid node
                 x = self.findX(node)
                 # Find list id
                 id = self.findID(node)
 
-                if not pd.gamma_region(x) and self.locked[id] == 0:
+                if not pd.gamma_region(x) and self.locked[id] == 0: # and bndry == False:
 
                     T = self.T[id]
 
-                    [H, dxT] = Hamiltonian.LaxFriedrichs(self,node,T,WENO)
-                    f = pd.f(x,dxT,self)
+                    [H, dxT] = Hamiltonian.LaxFriedrichs(self,node,T,sweepPass,WENO)
+                    f = pd.f(x,dxT,self,sweepPass)
 
                     # Lax-Friedrichs sweeping
                     Tbar = f - H
                     denom = 0
                     for i in range(self.dim):
-                        denom = denom + pd.alpha()[i]/self.h[i]
-                    Tbar = Tbar/denom
-                    Tbar = gamma*Tbar
-                    Tbar = Tbar + T
+                        denom += pd.alpha()[i]/self.h[i]
+                    Tbar /= denom
+                    # Tbar = gamma*Tbar
+                    if WENO: Tbar += T
+                    # if not WENO: Tbar = min(T,Tbar)
+                    Tbar = min(T,Tbar)
 
                     # Godunov sweeping
                     # [Tn,Tp] = Hamiltonian.LeftRight(self,node,0)
@@ -239,3 +247,51 @@ class subgrid:
                     # Find list id
                     id = self.findID(node)
                     self.T[id] = Tbar
+
+        # Update boundaries
+        # if not WENO:
+        #     for j in range(self.N[1]+1):
+        #         node = np.array([1,j])
+        #         id = self.findID(node)
+        #         T1 = self.T[id]
+        #         node[0] = 2
+        #         id = self.findID(node)
+        #         T2 = self.T[id]
+        #         node[0] = 0
+        #         id = self.findID(node)
+        #         T = self.T[id]
+        #         self.T[id] = min(max(2*T1-T2,T2),T)
+        #
+        #         node = np.array([self.N[0]-1,j])
+        #         id = self.findID(node)
+        #         T1 = self.T[id]
+        #         node[0] = self.N[0]-2
+        #         id = self.findID(node)
+        #         T2 = self.T[id]
+        #         node[0] = self.N[0]
+        #         id = self.findID(node)
+        #         T = self.T[id]
+        #         self.T[id] = min(max(2*T1-T2,T2),T)
+        #
+        #     for i in range(self.N[0]+1):
+        #         node = np.array([i,1])
+        #         id = self.findID(node)
+        #         T1 = self.T[id]
+        #         node[1] = 2
+        #         id = self.findID(node)
+        #         T2 = self.T[id]
+        #         node[1] = 0
+        #         id = self.findID(node)
+        #         T = self.T[id]
+        #         self.T[id] = min(max(2*T1-T2,T2),T)
+        #
+        #         node = np.array([i,self.N[1]-1])
+        #         id = self.findID(node)
+        #         T1 = self.T[id]
+        #         node[1] = self.N[1]-2
+        #         id = self.findID(node)
+        #         T2 = self.T[id]
+        #         node[1] = self.N[1]
+        #         id = self.findID(node)
+        #         T = self.T[id]
+        #         self.T[id] = min(max(2*T1-T2,T2),T)

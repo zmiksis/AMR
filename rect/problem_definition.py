@@ -27,7 +27,7 @@ def grid_size():
     # N = [40]
 
     # Two circle
-    N = [80,80]
+    N = [160,160]
 
     # Two sphere
     # N = [40,40,40]
@@ -36,13 +36,13 @@ def grid_size():
 
 def bndry_order():
 
-    return 3
+    return 2
 
 def gamma():
 
     return 1
 
-def Hamiltonian(xpoint, xval):
+def Hamiltonian(xpoint, xval, I, sweepPass):
 
     # Two point
     # x = xval[0]
@@ -64,7 +64,14 @@ def Hamiltonian(xpoint, xval):
     y = xpoint[1]
     p = xval[0]
     q = xval[1]
-    H = np.sqrt(p**2 + q**2)
+    a = 0
+    b = 0
+    g = 1
+    if sweepPass == 1:
+        H = I*np.sqrt(p**2 + q**2 + 1) + (a*p + b*q - g)/np.sqrt(a**2 + b**2 + g**2)
+    elif sweepPass == 2:
+        H = np.sqrt(p**2 + q**2)
+    # H = np.sqrt(p**2 + q**2)
 
 
     return H
@@ -110,15 +117,15 @@ def gamma_region(xval):
     x = xval[0]
     y = xval[1]
     # xbnd = (54/5)*(-1.1266+y)*(0.323846+y)*(0.685836-1.61301*y+y**2)*(0.055506+0.0824245*y+y*2)
-    if math.dist([x,y],[0,0.36621]) < 1e-2:
-        return True
-    elif abs(0.5-abs(x)) < 1e-2:
-        return True
-    elif abs(y) < 1e-2 or abs(1-y) < 1e-2:
+    if abs(0.5-abs(x)) < 1e-2:
         return True
     else:
         return False
 
+    # elif abs(y) < 1e-2 or abs(1-y) < 1e-2:
+    #     return True
+    # elif math.dist([x,y],[0,0.36621]) < 1e-2:
+    #     return True
     # elif math.dist([x,y],[0,0]) < 1e-2 or math.dist([x,y],[0,1]) < 1e-2:
     #     return True
     # elif x < xbnd or x > -xbnd:
@@ -136,7 +143,7 @@ def gamma_region(xval):
     # else:
     #     return False
 
-def f(xval, Dx, grid):
+def f(xval, Dx, grid, sweepPass):
 
     # Two point
     # rhs = 1
@@ -148,12 +155,22 @@ def f(xval, Dx, grid):
     # rhs = 1
 
     # Shape-from-shading
-    x = xval[0]
-    y = xval[1]
-    node = grid.findNode(xval)
-    I = grid.I[node[0]][node[1]]
-    if I == 0: I = 1e-6
-    rhs = np.sqrt((1/I**2) - 1)
+    # x = xval[0]
+    # y = xval[1]
+    # node = grid.findNode(xval)
+    # I = grid.I[node[0]][node[1]]
+    # if I == 0: I = 1e-6
+    # rhs = np.sqrt((1/I**2) - 1)
+    if sweepPass == 1:
+        rhs = 0
+    elif sweepPass == 2:
+        p = Dx[0]
+        q = Dx[1]
+        a = 0
+        b = 0
+        g = 1
+        I = (g - a*p - b*g)/np.sqrt(p**2 + q**2 + 1)
+        rhs = np.sqrt(((g - a*p - b*q)/I)**2 - 1)
 
     return rhs
 
@@ -193,11 +210,6 @@ def exact(xval):
     else:
         d = np.sqrt(z)
 
-    # if abs(0.5-abs(x)) < 1e-7:
-    #     d = 0
-    # elif abs(y) < 1e-7 or abs(1-y) < 1e-7:
-    #     d = 0
-
     # SFS
     # x = xval[0]
     # y = xval[1]
@@ -208,4 +220,4 @@ def exact(xval):
 
 def alpha():
 
-    return [1, 1, 1]
+    return [2, 2, 2]
