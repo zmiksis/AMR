@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 
 N = 160
-sfs = cv2.imread('vase-I.png')
+sfs = cv2.imread('vase-oblique-I-small.png')
 sfs = cv2.resize(sfs,(N+1,N+1))
 print(sfs.shape)
 # plt.imshow(sfs)
@@ -17,7 +17,7 @@ G = sfs[:,:,1]
 B = sfs[:,:,0]
 Itmp = 0.3*R + 0.59*G + 0.11*B
 Itmp /= 255
-# Itmp = list(zip(*Itmp[::-1]))
+Itmp = list(zip(*Itmp[::-1]))
 # I = np.zeros((N,N))
 # for i in range(N):
 #     for j in range(N):
