@@ -3,7 +3,7 @@
  import math
  import numpy as np
 
- # Need to access passed grid class values, and passed node (i,j)
+ # Need to access passed grid class values, passed node (i,j), and passed (x,y) point
 
  def obj(params):
 
