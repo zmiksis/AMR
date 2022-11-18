@@ -46,8 +46,8 @@
      return -M
 
  space = {
-     'a1': spaces.uniform(0.0, 1.0),
-     'a2': spaces.uniform(0.0, 1.0)
+     'a1': spaces.uniform(-1.0, 1.0),
+     'a2': spaces.uniform(-1.0, 1.0)
  }
 
 
