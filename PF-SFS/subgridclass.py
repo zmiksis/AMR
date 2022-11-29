@@ -41,10 +41,13 @@ class subgrid:
             for j in range(self.N[1]+1):
                 node = [i,j]
                 id = self.findID(node)
-                if self.I[i,j] > 0:
-                    self.T[id] = -((1/2)*math.log(self.I[i,j]) + math.log(self.f))
+                if i == 0 or i == self.N[0] or j == 0 or j == self.N[1]:
+                    self.T[id] = 10
                 else:
-                    self.T[id] = -math.log(self.f)
+                    if self.I[i,j] > 0:
+                        self.T[id] = -((1/2)*math.log(self.I[i,j]) + math.log(self.f))
+                    else:
+                        self.T[id] = -math.log(self.f)
 
 ###############################################################################
 
@@ -106,31 +109,35 @@ class subgrid:
     def sweep(self):
 
         # Sweep over each direction
-        for dir in range(len(self.order)):
-            # Generate lists of ordered indexes to sweep
-            index = []
-            for i in range(self.dim):
-                if self.order[dir][i] == 1:
-                    index.append(np.array(range(self.N[i]+1)))
-                else:
-                    index.append(np.array(range(self.N[i],-1,-1)))
-            index = np.array(index, dtype=object)
+        # for dir in range(len(self.order)):
+        dir = 0
+        # Generate lists of ordered indexes to sweep
+        index = []
+        for i in range(self.dim):
+            if self.order[dir][i] == 1:
+                index.append(np.array(range(self.N[i]+1)))
+            else:
+                index.append(np.array(range(self.N[i],-1,-1)))
+        index = np.array(index, dtype=object)
 
-            # Compute on each interior node
-            for idx in itertools.product(*index):
-                node = np.array(idx)
+        # Compute on each interior node
+        # for idx in itertools.product(*index):
+        #     node = np.array(idx)
+        for ii in range(1,self.N[0]):
+
+            # print('Sweeping row',ii,'...')
+
+            for jj in range(1,self.N[1]):
+
+                node = np.array([ii,jj])
+
                 # Find current grid node
                 x = self.findX(node)
                 # Find list id
                 id = self.findID(node)
                 Tu = self.T[id]
 
-                # Define function to be minimized
-                # a = ... R^2 variable to minimize over [0,1]^2
-                # Test value
-                a = np.array([0.25,0.5])
-
-                Q = np.sqrt(self.f/(self.f**2 + x[0]**2 + x[1]**2))
+                Q = np.sqrt((self.f**2)/(self.f**2 + x[0]**2 + x[1]**2))
                 J = self.I[node[0],node[1]]*(self.f**2)/Q
 
                 D = np.array([[self.f,0],[0,np.sqrt(self.f**2 + x[0]**2 + x[1]**2)]])
@@ -140,34 +147,48 @@ class subgrid:
                 Dil = np.matmul(R.transpose(),D)
                 Dil = np.matmul(Dil,R)
                 Dil *= J
-                fc = -1*np.matmul(Dil,a)
-                lc = -self.I[node[0],node[1]]*(self.f**2)*np.sqrt(1 - a[0]**2 - a[1]**2)
-                s = np.sign(fc)
 
-                nodei = np.array([node[0]+s[0],node[1]])
-                idx = int(self.findID(nodei))
-                if idx >= (self.N[0]+1)*(self.N[1]+1):
-                    nodei = np.array([node[0]-s[0],node[1]])
-                    idx = int(self.findID(nodei))
-                Ti = self.T[idx]
-                nodej = np.array([node[0],node[1]+s[1]])
-                idy = int(self.findID(nodej))
-                if idy >= (self.N[0]+1)*(self.N[1]+1):
-                    nodej = np.array([node[0],node[1]-s[1]])
-                    idy = int(self.findID(nodej))
-                Tj = self.T[idy]
+                M = -1e99
 
-                P = np.array([0,0])
-                P[0] = (Tu - Ti)/(-s[0]*self.h[0])
-                P[1] = (Tu - Tj)/(-s[1]*self.h[1])
+                for i in range(50):
+                    for j in range(50):
 
-                # Maximize M (or minimize -M)
-                M = -1*np.matmul(fc,P) - lc
+                        # Define function to be minimized
+                        # a = ... R^2 variable to minimize over unit ball
+                        # Test value
+                        xi = -1+i*(2/50)
+                        yi = -1+j*(2/50)
+
+                        if xi**2 + yi**2 < 1:
+                            a = np.array([xi,yi])
+
+                            fc = -1*np.matmul(Dil,a)
+                            lc = -self.I[node[0],node[1]]*(self.f**2)*np.sqrt(1 - a[0]**2 - a[1]**2)
+                            s = np.sign(fc)
+
+                            if not np.any(s == 0):
+                                nodei = np.array([node[0]+s[0],node[1]])
+                                idx = int(self.findID(nodei))
+                                Ti = self.T[idx]
+                                nodej = np.array([node[0],node[1]+s[1]])
+                                idy = int(self.findID(nodej))
+                                Tj = self.T[idy]
+
+                                P = np.array([0,0])
+                                P[0] = (Tu - Ti)/(-s[0]*self.h[0])
+                                P[1] = (Tu - Tj)/(-s[1]*self.h[1])
+
+                                # Maximize M (or minimize -M)
+                                Mtemp = -1*np.matmul(fc,P) - lc
+                                if Mtemp >= M:
+                                    M = Mtemp
+                                    dtopt = abs(fc[0])/self.h[0] + abs(fc[1])/self.h[1]
+                                    dtopt = 1/dtopt
+                                    Qs = np.array([s[0]*Ti/self.h[0],s[1]*Tj/self.h[1]])
+                                    c = -dtopt*(np.matmul(fc,Qs) + lc)
 
                 # Solve for new value
-                dtopt = fc[0]/self.h[0] + fc[1]/self.h[1]
-                dtopt = 1/dtopt
-                c = -Tu + dtopt*M
+                # c = -Tu + dtopt*M
 
                 t = Tu
                 gt  = t - dtopt*math.exp(-2*t) + c

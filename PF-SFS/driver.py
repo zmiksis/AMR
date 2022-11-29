@@ -2,25 +2,27 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import time
-import scipy as sp
-from scipy.ndimage import gaussian_filter
 import itertools
-import plotly.graph_objects as go
-import seaborn as sns
-from sklearn.cluster import KMeans
 import cv2
 import open3d as o3d
+import os
 
 import subgridclass as subgrid
 
 if __name__ == '__main__':
 
+    # Make surface directory
+    path = "surface"
+    isExist = os.path.exists(path)
+    if not isExist:
+        os.makedirs(path)
+
     # Set first order convergence tolerance
     conv_tol = 1e-2
 
     # Import image
-    # sfs = cv2.imread('vase001_128.png')
-    sfs = cv2.imread('Mozart001_256.pgm')
+    sfs = cv2.imread('vase001_128.png')
+    # sfs = cv2.imread('Mozart001_256.pgm')
 
     # Initialize domain
     N =  np.array([0,0])
@@ -43,6 +45,45 @@ if __name__ == '__main__':
     # Setup initial grid
     grid = subgrid.subgrid(lim,N,I,f)
 
+    # Generate list of grid nodes for plotting
+    xy = []
+    index = []
+    for i in range(grid.dim):
+        index.append(np.array(range(grid.N[i]+1)))
+    index = np.array(index)
+    for node in itertools.product(*index):
+        nodex = []
+        for i in range(grid.dim):
+            nodex.append(grid.lim[i][0]+node[i]*grid.h[i])
+        nodex = np.array(nodex)
+        xy.append(nodex)
+    x = np.array([item[0] for item in xy])
+    y = np.array([item[1] for item in xy])
+
+    fig5 = plt.figure()
+    ax5 = fig5.add_subplot(111, projection='3d')
+    ax5.set_title('Surface')
+    z = grid.T.copy()
+    X = np.reshape(x, (grid.N[0]+1,grid.N[1]+1))
+    X = X[1:-1,1:-1]
+    Y = np.reshape(y, (grid.N[0]+1,grid.N[1]+1))
+    Y = Y[1:-1,1:-1]
+    Z = np.reshape(z, (grid.N[0]+1,grid.N[1]+1))
+    Z = Z[1:-1,1:-1]
+    ax5.plot_surface(X,Y,Z,cmap='Greys')
+    plt.savefig('surface/super-solution.png')
+
+    surf_array = np.array([x,y,z])
+    surf_array = np.transpose(surf_array)
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(surf_array)
+    pcd.estimate_normals()
+    # Poisson mesh
+    poisson_mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=8, width=0, scale=1.1, linear_fit=False)[0]
+    bbox = pcd.get_axis_aligned_bounding_box()
+    p_mesh_crop = poisson_mesh.crop(bbox)
+    o3d.io.write_triangle_mesh("surface/p_mesh_super.obj", poisson_mesh)
+
     # Setup initial values
     iterate = 0
     T_old = grid.T.copy()
@@ -51,12 +92,42 @@ if __name__ == '__main__':
 
     # Implement sweeping here
     grid.sweep()
-    # iterate = iterate + 1
+    iterate = iterate + 1
+    print('G-S convergence error:',max(abs(grid.T-T_old)))
+
+    fig5 = plt.figure()
+    ax5 = fig5.add_subplot(111, projection='3d')
+    ax5.set_title('Surface')
+    z = grid.T.copy()
+    X = np.reshape(x, (grid.N[0]+1,grid.N[1]+1))
+    X = X[1:-1,1:-1]
+    Y = np.reshape(y, (grid.N[0]+1,grid.N[1]+1))
+    Y = Y[1:-1,1:-1]
+    Z = np.reshape(z, (grid.N[0]+1,grid.N[1]+1))
+    Z = Z[1:-1,1:-1]
+    ax5.plot_surface(X,Y,Z,cmap='Greys')
+    plt.savefig('surface/surface-1.png')
+
+    while iterate < 80:
     # while max(abs(grid.T-T_old)) > conv_tol:
-    #     T_old = grid.T.copy()
-    #     grid.sweep()
-    #     iterate = iterate + 1
-    #     print('G-S convergence error:',max(abs(grid.T-T_old)))
+        T_old = grid.T.copy()
+        grid.sweep()
+        iterate = iterate + 1
+        print('G-S convergence error:',max(abs(grid.T-T_old)))
+
+        fig5 = plt.figure()
+        ax5 = fig5.add_subplot(111, projection='3d')
+        ax5.set_title('Surface')
+        z = grid.T.copy()
+        X = np.reshape(x, (grid.N[0]+1,grid.N[1]+1))
+        X = X[1:-1,1:-1]
+        Y = np.reshape(y, (grid.N[0]+1,grid.N[1]+1))
+        Y = Y[1:-1,1:-1]
+        Z = np.reshape(z, (grid.N[0]+1,grid.N[1]+1))
+        Z = Z[1:-1,1:-1]
+        ax5.plot_surface(X,Y,Z,cmap='Greys')
+        fileName = 'surface/surface-' + str(iterate) + '.png'
+        plt.savefig(fileName)
 
     # Stop timer
     t1 = time.time()
@@ -115,10 +186,13 @@ if __name__ == '__main__':
     ax5.set_title('Surface')
     z = grid.T.copy()
     X = np.reshape(x, (grid.N[0]+1,grid.N[1]+1))
+    X = X[1:-1,1:-1]
     Y = np.reshape(y, (grid.N[0]+1,grid.N[1]+1))
+    Y = Y[1:-1,1:-1]
     Z = np.reshape(z, (grid.N[0]+1,grid.N[1]+1))
+    Z = Z[1:-1,1:-1]
     ax5.plot_surface(X,Y,Z,cmap='Greys')
-    plt.savefig('surface.png')
+    plt.savefig('surface/surface.png')
 
     # delete_index = []
     # for i in range(grid.N[0]+1):
@@ -138,5 +212,5 @@ if __name__ == '__main__':
     poisson_mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(pcd, depth=8, width=0, scale=1.1, linear_fit=False)[0]
     bbox = pcd.get_axis_aligned_bounding_box()
     p_mesh_crop = poisson_mesh.crop(bbox)
-    o3d.io.write_triangle_mesh("p_mesh_c.obj", poisson_mesh)
-    # o3d.io.write_triangle_mesh("p_mesh_c.obj", p_mesh_crop)
+    o3d.io.write_triangle_mesh("surface/p_mesh_c.obj", poisson_mesh)
+    # o3d.io.write_triangle_mesh("surface/p_mesh_c.obj", p_mesh_crop)
