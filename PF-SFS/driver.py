@@ -17,20 +17,19 @@ if __name__ == '__main__':
     if not isExist:
         os.makedirs(path)
 
-    # Set first order convergence tolerance
-    conv_tol = 1e-2
-
     # Import image
     sfs = cv2.imread('vase001_128.png')
     # sfs = cv2.imread('Mozart001_256.pgm')
+    # sfs = cv2.imread('vase256.pgm')
+    # sfs = cv2.imread('SFS-I.png')
 
     # Initialize domain
     N =  np.array([0,0])
     N[0] = sfs.shape[1]-1
     N[1] = sfs.shape[0]-1
-    lim = np.array([[-sfs.shape[1]/2,sfs.shape[1]/2],[-sfs.shape[0]/2,sfs.shape[0]/2]])
+    lim = np.array([[-sfs.shape[1]/20,sfs.shape[1]/20],[-sfs.shape[0]/20,sfs.shape[0]/20]])
     #  Focal length
-    f = 5
+    f = 25
 
     # Get normalized B/W values
     R = sfs[:,:,2]
@@ -39,6 +38,7 @@ if __name__ == '__main__':
     I = 0.3*R + 0.59*G + 0.11*B
     I /= 255
     I = np.subtract(1,I)
+    # I = np.subtract(255,I)
     # Rotate so (0,0) is bottom-left of image
     I = list(zip(*I[::-1]))
 
@@ -72,6 +72,7 @@ if __name__ == '__main__':
     Z = Z[1:-1,1:-1]
     ax5.plot_surface(X,Y,Z,cmap='Greys')
     plt.savefig('surface/super-solution.png')
+    fig5.clear()
 
     surf_array = np.array([x,y,z])
     surf_array = np.transpose(surf_array)
@@ -92,9 +93,13 @@ if __name__ == '__main__':
 
     # Implement sweeping here
     grid.sweep()
+    grid.sweep(True)
     iterate = iterate + 1
-    print('G-S convergence error:',max(abs(grid.T-T_old)))
+    err = np.sum(np.absolute(np.subtract(grid.T,T_old)))/((grid.N[0]+1)*(grid.N[1]+1))
+    print('G-S convergence error:',err)
+    # print('G-S convergence error:',max(abs(grid.T-T_old)))
 
+    # Plot iteration surface
     fig5 = plt.figure()
     ax5 = fig5.add_subplot(111, projection='3d')
     ax5.set_title('Surface')
@@ -107,14 +112,19 @@ if __name__ == '__main__':
     Z = Z[1:-1,1:-1]
     ax5.plot_surface(X,Y,Z,cmap='Greys')
     plt.savefig('surface/surface-1.png')
+    fig5.clear()
 
     while iterate < 80:
     # while max(abs(grid.T-T_old)) > conv_tol:
         T_old = grid.T.copy()
         grid.sweep()
+        grid.sweep(True)
         iterate = iterate + 1
-        print('G-S convergence error:',max(abs(grid.T-T_old)))
+        err = np.sum(np.absolute(np.subtract(grid.T,T_old)))/((grid.N[0]+1)*(grid.N[1]+1))
+        print('G-S convergence error:',err)
+        # print('G-S convergence error:',max(abs(grid.T-T_old)))
 
+        # Plot iteration surface
         fig5 = plt.figure()
         ax5 = fig5.add_subplot(111, projection='3d')
         ax5.set_title('Surface')
@@ -128,6 +138,7 @@ if __name__ == '__main__':
         ax5.plot_surface(X,Y,Z,cmap='Greys')
         fileName = 'surface/surface-' + str(iterate) + '.png'
         plt.savefig(fileName)
+        fig5.clear()
 
     # Stop timer
     t1 = time.time()
@@ -193,6 +204,7 @@ if __name__ == '__main__':
     Z = Z[1:-1,1:-1]
     ax5.plot_surface(X,Y,Z,cmap='Greys')
     plt.savefig('surface/surface.png')
+    fig5.clear()
 
     # delete_index = []
     # for i in range(grid.N[0]+1):

@@ -19,13 +19,13 @@ class subgrid:
         for i in range(self.dim):
             self.h.append((self.lim[i][1]-self.lim[i][0])/N[i])
 
+        # Regularize
+        for i in range(self.N[0]+1):
+            for j in range(self.N[1]):
+                self.I[i,j] = min(self.I[i,j],1-(1e-4))
+
         # Initiate grid solution values
         Nsize = (self.N[0]+1)*(self.N[1]+1)
-        self.locked = np.zeros(Nsize)
-        self.ref_flags = np.zeros((N[0]+1,N[1]+1))
-
-        # Initialize sweep orderings
-        self.order = np.array(list(itertools.product([-1,1],repeat=self.dim)))
 
         # Initiate supersolution u0
         # minI = 1
@@ -106,28 +106,63 @@ class subgrid:
 
 ###############################################################################
 
-    def sweep(self):
+    def maxM(self,node,Tu,Dil):
+        # Maximize value M
 
-        # Sweep over each direction
-        # for dir in range(len(self.order)):
-        dir = 0
-        # Generate lists of ordered indexes to sweep
-        index = []
-        for i in range(self.dim):
-            if self.order[dir][i] == 1:
-                index.append(np.array(range(self.N[i]+1)))
-            else:
-                index.append(np.array(range(self.N[i],-1,-1)))
-        index = np.array(index, dtype=object)
+        M = -1e99
+
+        for i in range(50):
+            for j in range(50):
+
+                xi = -1+i*(2/50)
+                yi = -1+j*(2/50)
+
+                if xi**2 + yi**2 < 1:
+                    a = np.array([xi,yi])
+
+                    fc = -1*np.matmul(Dil,a)
+                    lc = -self.I[node[0],node[1]]*(self.f**2)*np.sqrt(1 - a[0]**2 - a[1]**2)
+                    s = np.sign(fc)
+
+                    if not np.any(abs(s) < 1e-9):
+                        nodei = np.array([node[0]+s[0],node[1]])
+                        idx = int(self.findID(nodei))
+                        Ti = self.T[idx]
+                        nodej = np.array([node[0],node[1]+s[1]])
+                        idy = int(self.findID(nodej))
+                        Tj = self.T[idy]
+
+                        P = np.array([0,0])
+                        P[0] = (Tu - Ti)/(-s[0]*self.h[0])
+                        P[1] = (Tu - Tj)/(-s[1]*self.h[1])
+
+                        # Maximize M (or minimize -M)
+                        Mtemp = -1*np.matmul(fc,P) - lc
+                        if Mtemp >= M:
+                            M = Mtemp
+                            dtopt = abs(fc[0])/self.h[0] + abs(fc[1])/self.h[1]
+                            dtopt = 1/dtopt
+                            dtopt *= 0.9
+                            fcmax = fc
+
+        return M, dtopt
+
+
+###############################################################################
+
+    def sweep(self,alt=False):
+
+        if not alt:
+            Irange = range(1,self.N[0])
+            Jrange = range(1,self.N[1])
+        else:
+            Irange = reversed(range(1,self.N[0]))
+            Jrange = reversed(range(1,self.N[1]))
 
         # Compute on each interior node
-        # for idx in itertools.product(*index):
-        #     node = np.array(idx)
-        for ii in range(1,self.N[0]):
+        for ii in Irange:
 
-            # print('Sweeping row',ii,'...')
-
-            for jj in range(1,self.N[1]):
+            for jj in Jrange:
 
                 node = np.array([ii,jj])
 
@@ -148,53 +183,16 @@ class subgrid:
                 Dil = np.matmul(Dil,R)
                 Dil *= J
 
-                M = -1e99
-
-                for i in range(50):
-                    for j in range(50):
-
-                        # Define function to be minimized
-                        # a = ... R^2 variable to minimize over unit ball
-                        # Test value
-                        xi = -1+i*(2/50)
-                        yi = -1+j*(2/50)
-
-                        if xi**2 + yi**2 < 1:
-                            a = np.array([xi,yi])
-
-                            fc = -1*np.matmul(Dil,a)
-                            lc = -self.I[node[0],node[1]]*(self.f**2)*np.sqrt(1 - a[0]**2 - a[1]**2)
-                            s = np.sign(fc)
-
-                            if not np.any(s == 0):
-                                nodei = np.array([node[0]+s[0],node[1]])
-                                idx = int(self.findID(nodei))
-                                Ti = self.T[idx]
-                                nodej = np.array([node[0],node[1]+s[1]])
-                                idy = int(self.findID(nodej))
-                                Tj = self.T[idy]
-
-                                P = np.array([0,0])
-                                P[0] = (Tu - Ti)/(-s[0]*self.h[0])
-                                P[1] = (Tu - Tj)/(-s[1]*self.h[1])
-
-                                # Maximize M (or minimize -M)
-                                Mtemp = -1*np.matmul(fc,P) - lc
-                                if Mtemp >= M:
-                                    M = Mtemp
-                                    dtopt = abs(fc[0])/self.h[0] + abs(fc[1])/self.h[1]
-                                    dtopt = 1/dtopt
-                                    Qs = np.array([s[0]*Ti/self.h[0],s[1]*Tj/self.h[1]])
-                                    c = -dtopt*(np.matmul(fc,Qs) + lc)
+                [M,dtopt] = self.maxM(node,Tu,Dil)
 
                 # Solve for new value
-                # c = -Tu + dtopt*M
+                c = -Tu + dtopt*M
 
                 t = Tu
                 gt  = t - dtopt*math.exp(-2*t) + c
                 gtp = 1 + 2*dtopt*math.exp(-2*t)
                 tk = t - gt/gtp
-                while abs(t - tk) > 1e-12:
+                while abs(t - tk) > 1e-13:
                     t = tk
                     gt  = t - dtopt*math.exp(-2*t) + c
                     gtp = 1 + 2*dtopt*math.exp(-2*t)
